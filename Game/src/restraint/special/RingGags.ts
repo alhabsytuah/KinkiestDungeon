@@ -126,7 +126,7 @@ function RG_GetDroolLockItem() {
 }
 
 function RG_SilentAddRestraint(name) {
-	var g = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
+	var g: any = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
 	var oF = g.KinkyDungeonSendFloater;
 	var oA = g.AudioPlayInstantSoundKD;
 	var oT = g.KinkyDungeonSendTextMessage;
@@ -149,7 +149,7 @@ function RG_SilentAddRestraint(name) {
 	return r;
 }
 function RG_SilentRemoveRestraint(group) {
-	var g = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
+	var g: any = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
 	var oF = g.KinkyDungeonSendFloater;
 	var oA = g.AudioPlayInstantSoundKD;
 	var oT = g.KinkyDungeonSendTextMessage;
