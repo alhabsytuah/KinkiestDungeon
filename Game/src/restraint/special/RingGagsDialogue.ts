@@ -114,14 +114,19 @@ function RG_HasCriersRingDlg(): boolean {
 })();
 
 var RG_TextGetHooked = false;
+
 function RG_InstallTextGetHook() {
 	if (RG_TextGetHooked) return;
 	if (typeof TextGet !== "function") return;
 	if (typeof RG_HasOnlyOpenGags !== "function") return;
 	RG_TextGetHooked = true;
-	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+
+	var g: any = typeof globalThis !== "undefined"
+		? globalThis
+		: (typeof window !== "undefined" ? window : {});
 	var orig: any = g.TextGet || TextGet;
-	g.TextGet = function (key: any) {
+
+	var hooked = function (key: any) {
 		if (typeof key === "string" && key.indexOf("KinkyDungeonGag") === 0 && RG_HasOnlyOpenGags()) {
 			var s = RG_S();
 			if (key.indexOf("KinkyDungeonGagMumbleAroused") === 0) {
@@ -147,17 +152,26 @@ function RG_InstallTextGetHook() {
 		}
 		return orig.apply(this, arguments);
 	};
+
+	g.TextGet = hooked;
+	// @ts-ignore intentional monkey-patch
+	TextGet = hooked;
 }
 
 var RG_GagParticlesHooked = false;
+
 function RG_InstallGagParticlesHook() {
 	if (RG_GagParticlesHooked) return;
 	if (typeof KDSendGagParticles !== "function") return;
 	if (typeof RG_HasOnlyOpenGags !== "function") return;
 	RG_GagParticlesHooked = true;
-	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+
+	var g: any = typeof globalThis !== "undefined"
+		? globalThis
+		: (typeof window !== "undefined" ? window : {});
 	var orig: any = g.KDSendGagParticles || KDSendGagParticles;
-	g.KDSendGagParticles = function (entity: any) {
+
+	var hooked = function (entity: any) {
 		if (entity && entity.player && RG_HasOnlyOpenGags()) {
 			var s = RG_S();
 			var cat = s.LastNoiseCategory;
@@ -170,6 +184,11 @@ function RG_InstallGagParticlesHook() {
 		}
 		return orig.apply(this, arguments);
 	};
+
+	// Patch both the global and the local binding (game may call either)
+	g.KDSendGagParticles = hooked;
+	// @ts-ignore intentional monkey-patch (same as original mod)
+	KDSendGagParticles = hooked;
 }
 
 function RG_FireDroolStartMessage(nextStage: number, isCycling: boolean, _armsBound: boolean, hasDroolLock: boolean) {
