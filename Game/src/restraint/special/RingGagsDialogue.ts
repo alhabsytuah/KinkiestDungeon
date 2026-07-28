@@ -1,9 +1,8 @@
 /**
- * RingGags open-mouth dialogue & noise — loaded after RingGags.ts
- * Implements: muffled→open speech, drool flavor, breath flavor, audible noise
- *
- * Uses (RG_State as any) for fields not on the core RG_State object literal,
- * and (globalThis as any) to reassign TextGet / KDSendGagParticles (TS2630).
+ * RingGags open-mouth dialogue & noise
+ * Strategy: register dedicated KinkyDungeonOpenGag* text keys via addTextKey,
+ * and route idle mumble through KDDoMumble when only OpenGags are worn.
+ * Avoids fighting vanilla TextGet on shared KinkyDungeonGagMumble* keys.
  */
 "use strict";
 
@@ -12,6 +11,7 @@ var RG_OPEN_MUMBLE_AROUSED = ["Aaahh~", "Haahhh~", "Aahnn~", "Nnhaa~", "Haahh~~"
 var RG_OPEN_STRUGGLE = ["Aaagh!", "Hnnaa!", "Aaah!!", "Nnaagh!", "Haaah!"];
 var RG_OPEN_STRUGGLE_QUIET = ["Aah.", "Haa...", "Nnh.", "Ahh."];
 var RG_OPEN_RESTRAINT = ["Aah!", "Nnaah!", "AAH!!", "Haaah!"];
+
 var RG_NOISE_RADII: {[key: string]: number} = {
 	OPEN_MUMBLE: 4,
 	OPEN_MUMBLE_AROUSED: 8,
@@ -20,12 +20,14 @@ var RG_NOISE_RADII: {[key: string]: number} = {
 	OPEN_RESTRAINT: 4,
 };
 var RG_NOISE_RADIUS = 4;
+
 var RG_COLOR_START = "#b0c4de";
 var RG_COLOR_WIPE = "#88ccaa";
 var RG_COLOR_BOUND_T1 = "#d4a0b0";
 var RG_COLOR_BOUND_T2 = "#d88898";
 var RG_COLOR_BOUND_T3 = "#cc6680";
 var RG_COLOR_BREATH = "#a8c8d8";
+
 var RG_MSG_DROOL_START_FIRST = [
 	"Saliva begins pooling behind the ring in your mouth.",
 	"Your mouth starts watering uncontrollably around the gag.",
@@ -70,7 +72,6 @@ var RG_MSG_BOUND_TIER3 = [
 	"Saliva soaks the front of your clothes. There's no end to it.",
 	"Your jaw aches and your chin never dries. This is just how it is now.",
 ];
-var RG_MSG_STUFFED = "With your mouth packed full, the sound stays at your lips — and so does the drool. You can move quietly again.";
 var RG_MSG_BREATH_START = [
 	"Your breathing shifts to your open mouth — soft, audible pants escape the ring.",
 	"With your lips forced apart, every breath is a soft gasp.",
@@ -92,7 +93,6 @@ function RG_DlgPick(arr: string[]): string {
 	return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/** Extended state fields live on RG_State but are not in the core object literal type. */
 function RG_S(): any {
 	return typeof RG_State !== "undefined" ? RG_State : {};
 }
@@ -105,7 +105,6 @@ function RG_HasCriersRingDlg(): boolean {
 	return false;
 }
 
-// Ensure extended fields exist
 (function () {
 	var s = RG_S();
 	if (s.LastNoiseCategory === undefined) s.LastNoiseCategory = null;
@@ -113,62 +112,111 @@ function RG_HasCriersRingDlg(): boolean {
 	if (s.LastBreathWasActive === undefined) s.LastBreathWasActive = false;
 })();
 
-var RG_TextGetHooked = false;
+/** Register dedicated open-gag speech keys so vanilla GagMumble* stay untouched. */
+var RG_OPEN_TEXTS_REGISTERED = false;
+function RG_RegisterOpenGagTexts() {
+	if (RG_OPEN_TEXTS_REGISTERED) return;
+	if (typeof addTextKey !== "function") return;
+	RG_OPEN_TEXTS_REGISTERED = true;
+	for (var i = 0; i < 10; i++) {
+		addTextKey("KinkyDungeonOpenGagMumble" + i, RG_OPEN_MUMBLE[i % RG_OPEN_MUMBLE.length]);
+		addTextKey("KinkyDungeonOpenGagMumbleAroused" + i, RG_OPEN_MUMBLE_AROUSED[i % RG_OPEN_MUMBLE_AROUSED.length]);
+		addTextKey("KinkyDungeonOpenGagStruggle" + i, RG_OPEN_STRUGGLE[i % RG_OPEN_STRUGGLE.length]);
+		addTextKey("KinkyDungeonOpenGagStruggleQuiet" + i, RG_OPEN_STRUGGLE_QUIET[i % RG_OPEN_STRUGGLE_QUIET.length]);
+		addTextKey("KinkyDungeonOpenGagRestraint" + i, RG_OPEN_RESTRAINT[i % RG_OPEN_RESTRAINT.length]);
+	}
+	if (typeof console !== "undefined" && console.log) {
+		console.log("[RingGags] Open-gag text keys registered (KinkyDungeonOpenGag*)");
+	}
+}
 
-function RG_InstallTextGetHook() {
-	if (RG_TextGetHooked) return;
-	if (typeof TextGet !== "function") return;
+/** KinkyDungeonGagMumble -> KinkyDungeonOpenGagMumble */
+function RG_ToOpenGagKey(key: string): string {
+	if (key.indexOf("KinkyDungeonGag") === 0) {
+		return "KinkyDungeonOpenGag" + key.substring("KinkyDungeonGag".length);
+	}
+	return key;
+}
+
+var RG_DoMumbleHooked = false;
+function RG_InstallDoMumbleHook() {
+	if (RG_DoMumbleHooked) return;
+	if (typeof KDDoMumble !== "function") return;
 	if (typeof RG_HasOnlyOpenGags !== "function") return;
-	RG_TextGetHooked = true;
+	RG_DoMumbleHooked = true;
 
-	var g: any = typeof globalThis !== "undefined"
-		? globalThis
-		: (typeof window !== "undefined" ? window : {});
-	var orig: any = g.TextGet || TextGet;
+	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+	var orig: any = g.KDDoMumble || KDDoMumble;
 
-	var hooked = function (key: any) {
-		if (typeof key === "string" && key.indexOf("KinkyDungeonGag") === 0 && RG_HasOnlyOpenGags()) {
-			var s = RG_S();
-			if (key.indexOf("KinkyDungeonGagMumbleAroused") === 0) {
-				s.LastNoiseCategory = "OPEN_MUMBLE_AROUSED";
-				return RG_DlgPick(RG_OPEN_MUMBLE_AROUSED);
+	var hooked = function (player: any, cancel: boolean) {
+		if (!cancel && typeof RG_HasOnlyOpenGags === "function" && RG_HasOnlyOpenGags()) {
+			var origCanTalk: any = typeof KinkyDungeonCanTalk === "function" ? KinkyDungeonCanTalk : null;
+			if (origCanTalk) {
+				g.KinkyDungeonCanTalk = function () { return true; };
+				// @ts-ignore
+				KinkyDungeonCanTalk = g.KinkyDungeonCanTalk;
 			}
-			if (key.indexOf("KinkyDungeonGagMumble") === 0) {
-				s.LastNoiseCategory = "OPEN_MUMBLE";
-				return RG_DlgPick(RG_OPEN_MUMBLE);
+			try {
+				orig.apply(this, arguments);
+			} finally {
+				if (origCanTalk) {
+					g.KinkyDungeonCanTalk = origCanTalk;
+					// @ts-ignore
+					KinkyDungeonCanTalk = origCanTalk;
+				}
 			}
-			if (key.indexOf("KinkyDungeonGagStruggleQuiet") === 0) {
-				s.LastNoiseCategory = "OPEN_STRUGGLE_QUIET";
-				return RG_DlgPick(RG_OPEN_STRUGGLE_QUIET);
+
+			var gagchance = (typeof KinkyDungeonGagMumbleChance !== "undefined") ? KinkyDungeonGagMumbleChance : 0.02;
+			var perR = (typeof KinkyDungeonGagMumbleChancePerRestraint !== "undefined") ? KinkyDungeonGagMumbleChancePerRestraint : 0.0025;
+			var perMax = (typeof KinkyDungeonGagMumbleChancePerRestraintMax !== "undefined") ? KinkyDungeonGagMumbleChancePerRestraintMax : 0.05;
+			if (typeof KinkyDungeonAllRestraint === "function") {
+				for (var inv of KinkyDungeonAllRestraint()) {
+					if (typeof KDRestraint === "function" && KDRestraint(inv) && gagchance + perR < perMax) gagchance += perR;
+				}
 			}
-			if (key.indexOf("KinkyDungeonGagStruggle") === 0) {
-				s.LastNoiseCategory = "OPEN_STRUGGLE";
-				return RG_DlgPick(RG_OPEN_STRUGGLE);
+			var canTalkNow = origCanTalk ? !origCanTalk() : true;
+			if (canTalkNow && typeof KDRandom === "function" && KDRandom() < gagchance) {
+				var numMsg = (typeof KDNumberOfGagMsg !== "undefined") ? KDNumberOfGagMsg : 5;
+				var gagMsg = Math.floor(KDRandom() * numMsg);
+				var gagEffect = (typeof KinkyDungeonGagTotal === "function") ? KinkyDungeonGagTotal() * 5 : 0;
+				gagMsg += gagEffect;
+				gagMsg = Math.max(0, Math.min(7, Math.floor(gagMsg)));
+				var prefix = "KinkyDungeonOpenGagMumble";
+				var distract = (typeof KinkyDungeonStatDistraction !== "undefined") ? KinkyDungeonStatDistraction : 0;
+				var distractMax = (typeof KinkyDungeonStatDistractionMax !== "undefined") ? KinkyDungeonStatDistractionMax : 100;
+				if (distractMax > 0 && KDRandom() < distract / distractMax) {
+					prefix = "KinkyDungeonOpenGagMumbleAroused";
+					RG_S().LastNoiseCategory = "OPEN_MUMBLE_AROUSED";
+				} else {
+					RG_S().LastNoiseCategory = "OPEN_MUMBLE";
+				}
+				var key = prefix + gagMsg;
+				var line = (typeof TextGet === "function") ? TextGet(key) : RG_DlgPick(RG_OPEN_MUMBLE);
+				if (typeof KinkyDungeonSendDialogue === "function" && typeof KinkyDungeonPlayerEntity !== "undefined") {
+					KinkyDungeonSendDialogue(KinkyDungeonPlayerEntity, line, (typeof KDBaseWhite !== "undefined") ? KDBaseWhite : "#ffffff", 2, 0);
+				}
+				if (typeof KDToggles !== "undefined" && KDToggles.GagParticles && typeof KDSendGagParticles === "function" && typeof KDPlayer === "function") {
+					KDSendGagParticles(KDPlayer());
+				}
 			}
-			if (key.indexOf("KinkyDungeonGagRestraint") === 0) {
-				s.LastNoiseCategory = "OPEN_RESTRAINT";
-				return RG_DlgPick(RG_OPEN_RESTRAINT);
-			}
+			return;
 		}
 		return orig.apply(this, arguments);
 	};
 
-	g.TextGet = hooked;
-	// @ts-ignore intentional monkey-patch
-	TextGet = hooked;
+	g.KDDoMumble = hooked;
+	// @ts-ignore
+	KDDoMumble = hooked;
 }
 
 var RG_GagParticlesHooked = false;
-
 function RG_InstallGagParticlesHook() {
 	if (RG_GagParticlesHooked) return;
 	if (typeof KDSendGagParticles !== "function") return;
 	if (typeof RG_HasOnlyOpenGags !== "function") return;
 	RG_GagParticlesHooked = true;
 
-	var g: any = typeof globalThis !== "undefined"
-		? globalThis
-		: (typeof window !== "undefined" ? window : {});
+	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 	var orig: any = g.KDSendGagParticles || KDSendGagParticles;
 
 	var hooked = function (entity: any) {
@@ -185,10 +233,44 @@ function RG_InstallGagParticlesHook() {
 		return orig.apply(this, arguments);
 	};
 
-	// Patch both the global and the local binding (game may call either)
 	g.KDSendGagParticles = hooked;
-	// @ts-ignore intentional monkey-patch (same as original mod)
+	// @ts-ignore
 	KDSendGagParticles = hooked;
+}
+
+var RG_TextGetHooked = false;
+function RG_InstallTextGetHook() {
+	if (RG_TextGetHooked) return;
+	if (typeof TextGet !== "function") return;
+	if (typeof RG_HasOnlyOpenGags !== "function") return;
+	RG_TextGetHooked = true;
+
+	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+	var orig: any = g.TextGet || TextGet;
+
+	var hooked = function (key: any) {
+		if (typeof key === "string" && key.indexOf("KinkyDungeonGag") === 0 && key.indexOf("KinkyDungeonOpenGag") !== 0 && RG_HasOnlyOpenGags()) {
+			var openKey = RG_ToOpenGagKey(key);
+			var s = RG_S();
+			if (key.indexOf("KinkyDungeonGagMumbleAroused") === 0) s.LastNoiseCategory = "OPEN_MUMBLE_AROUSED";
+			else if (key.indexOf("KinkyDungeonGagMumble") === 0) s.LastNoiseCategory = "OPEN_MUMBLE";
+			else if (key.indexOf("KinkyDungeonGagStruggleQuiet") === 0) s.LastNoiseCategory = "OPEN_STRUGGLE_QUIET";
+			else if (key.indexOf("KinkyDungeonGagStruggle") === 0) s.LastNoiseCategory = "OPEN_STRUGGLE";
+			else if (key.indexOf("KinkyDungeonGagRestraint") === 0) s.LastNoiseCategory = "OPEN_RESTRAINT";
+			var t = orig.call(this, openKey);
+			if (t && t !== openKey) return t;
+			if (s.LastNoiseCategory === "OPEN_MUMBLE_AROUSED") return RG_DlgPick(RG_OPEN_MUMBLE_AROUSED);
+			if (s.LastNoiseCategory === "OPEN_STRUGGLE_QUIET") return RG_DlgPick(RG_OPEN_STRUGGLE_QUIET);
+			if (s.LastNoiseCategory === "OPEN_STRUGGLE") return RG_DlgPick(RG_OPEN_STRUGGLE);
+			if (s.LastNoiseCategory === "OPEN_RESTRAINT") return RG_DlgPick(RG_OPEN_RESTRAINT);
+			return RG_DlgPick(RG_OPEN_MUMBLE);
+		}
+		return orig.apply(this, arguments);
+	};
+
+	g.TextGet = hooked;
+	// @ts-ignore
+	TextGet = hooked;
 }
 
 function RG_FireDroolStartMessage(nextStage: number, isCycling: boolean, _armsBound: boolean, hasDroolLock: boolean) {
@@ -234,15 +316,16 @@ function RG_FireBreathMessage(staminaRatio: number, aroused: boolean) {
 	s.BreathMsgCooldown = 40;
 }
 
-// Install hooks when ready (deferred — TextGet / KDSendGagParticles may load later)
 (function RG_DialogueBoot() {
 	var tries = 0;
 	function tick() {
-		RG_InstallTextGetHook();
+		RG_RegisterOpenGagTexts();
+		RG_InstallDoMumbleHook();
 		RG_InstallGagParticlesHook();
-		if (RG_TextGetHooked && RG_GagParticlesHooked) {
+		RG_InstallTextGetHook();
+		if (RG_OPEN_TEXTS_REGISTERED && RG_DoMumbleHooked) {
 			if (typeof console !== "undefined" && console.log) {
-				console.log("[RingGags] Open-mouth dialogue & noise hooks installed");
+				console.log("[RingGags] Open-mouth dialogue installed (OpenGag keys + KDDoMumble route)");
 			}
 			return;
 		}
