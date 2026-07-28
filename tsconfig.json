@@ -149,6 +149,7 @@
         "Game/src/restraint/KDHypno.ts",
         "Game/src/restraint/KinkyDungeonRestraintsList.ts",
         "Game/src/restraint/special/RingGags.ts",
+        "Game/src/restraint/special/RingGagsDialogue.ts",
         "Game/src/collection/KinkyDungeonCollection.ts",
         "Game/src/collection/KDCollectionWander.ts",
         "Game/src/collection/KDCollectionWanderList.ts",
