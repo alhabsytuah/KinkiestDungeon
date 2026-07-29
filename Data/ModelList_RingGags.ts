@@ -1,21 +1,11 @@
 /**
  * RingGags models — base-game port of RingGags mod (Sax)
- * Loaded with other Data/ModelList_*.ts via the build.
+ * Loaded via tsconfig (Data/ModelList_RingGags.ts).
  *
- * Asset layout:
- *   Models/RingGags/           — ring / spider / tongue / large / latex
- *   Models/PlugGags/           — plugged plug-gag sets + CommonPlug
- *   Models/PlugGags/OpenGags/  — open (unplugged) sprites (canonical)
- *   Models/SFX/                — drool / breath overlays
- *
- * OpenGags inventory (as of re-sync):
- *   PanelGagOpen.png
- *   SmallLeatherPanelGagOpen.png
- *   CyberPlugGagOpen.png
- *   GoodGirlGagOpen.png  (+ GoodGirlGag.png optional base)
- *   SteelMuzzleOpen.png
- *   BlacksteelMuzzleOpen.png
- *   OrnamentalGagOpen.png  (Miko open composite)
+ * Open sprites live in: Models/PlugGags/OpenGags/
+ *   PanelGagOpen.png, SmallLeatherPanelGagOpen.png, CyberPlugGagOpen.png,
+ *   GoodGirlGagOpen.png, SteelMuzzleOpen.png, BlacksteelMuzzleOpen.png,
+ *   OrnamentalGagOpen.png
  */
 
 // ---- Core ring gag ----
@@ -29,12 +19,10 @@ AddModel({
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
 		{ Name: "RingMouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "RingMouth",
-			InheritColor: "Ball",
+			Sprite: "RingMouth", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip",
-			InheritColor: "Ball",
+			Sprite: "TongueTip", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 15,
 			Sprite: "BallStrap", Folder: "GagLeather",
@@ -65,19 +53,16 @@ AddModel({
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
 		{ Name: "RingMouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "RingMouth",
-			InheritColor: "Ball",
+			Sprite: "RingMouth", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip",
-			InheritColor: "Ball",
+			Sprite: "TongueTip", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 15,
 			Sprite: "BallStrap", Folder: "GagLeather",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "SpiderOverlay", Layer: "GagStraps", Pri: 50,
-			Sprite: "SpiderGagOverlay",
-			InheritColor: "Ball",
+			Sprite: "SpiderGagOverlay", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
@@ -94,7 +79,6 @@ AddModel(GetModelWithExtraLayers("SpiderGagHarnessSecure", "SpiderGagHarness", [
 		OffsetX: 942, OffsetY: 200, Invariant: true },
 ], "SpiderGag", false));
 
-// ---- Large / Latex ring variants ----
 AddModel({
 	Name: "LargeRingGag",
 	Folder: "RingGags",
@@ -105,12 +89,10 @@ AddModel({
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
 		{ Name: "RingMouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "LargeRing",
-			InheritColor: "Ball",
+			Sprite: "LargeRing", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTipLarge",
-			InheritColor: "Ball",
+			Sprite: "TongueTipLarge", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 15,
 			Sprite: "BallStrap", Folder: "GagLeather",
@@ -128,12 +110,10 @@ AddModel({
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
 		{ Name: "RingMouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "LatexRing",
-			InheritColor: "Ball",
+			Sprite: "LatexRing", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip",
-			InheritColor: "Ball",
+			Sprite: "TongueTip", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 15,
 			Sprite: "BallStrap", Folder: "GagLeather",
@@ -141,7 +121,6 @@ AddModel({
 	])
 });
 
-// ---- Tongue Trap ----
 AddModel({
 	Name: "TongueTrapModel",
 	Folder: "RingGags",
@@ -152,8 +131,7 @@ AddModel({
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
 		{ Name: "RingMouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "RingMouth",
-			InheritColor: "Ball",
+			Sprite: "RingMouth", InheritColor: "Ball",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTrap", Layer: "Gag", Pri: 2,
 			Sprite: "TongueTrap",
@@ -167,7 +145,6 @@ AddModel({
 	])
 });
 
-// ---- Incantor's Mouthpiece ----
 AddModel({
 	Name: "IncantorsMouthpieceModel",
 	Folder: "RingGags/IncantorsMouthpiece",
@@ -177,31 +154,17 @@ AddModel({
 	Categories: ["Restraints", "Gags"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "Mouth", Layer: "GagUnder", Pri: -101,
-			Sprite: "Mouth",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "Panel", Layer: "GagFlat", Pri: 5,
-			Sprite: "Panel",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "PanelOverlay", Layer: "GagFlat", Pri: 5.1,
-			Sprite: "PanelOverlay",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "MuzzleRim", Layer: "GagMuzzle", Pri: 10,
-			Sprite: "MuzzleRim",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "MuzzleGold", Layer: "GagMuzzle", Pri: 10.1,
-			Sprite: "MuzzleGold",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "MuzzleHarness", Layer: "GagMuzzleStraps", Pri: 15,
-			Sprite: "MuzzleHarness",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "MuzzleCollar", Layer: "GagMuzzleStraps", Pri: 16,
-			Sprite: "MuzzleCollar",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "Mouth", Layer: "GagUnder", Pri: -101, Sprite: "Mouth", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "Panel", Layer: "GagFlat", Pri: 5, Sprite: "Panel", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "PanelOverlay", Layer: "GagFlat", Pri: 5.1, Sprite: "PanelOverlay", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "MuzzleRim", Layer: "GagMuzzle", Pri: 10, Sprite: "MuzzleRim", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "MuzzleGold", Layer: "GagMuzzle", Pri: 10.1, Sprite: "MuzzleGold", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "MuzzleHarness", Layer: "GagMuzzleStraps", Pri: 15, Sprite: "MuzzleHarness", OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "MuzzleCollar", Layer: "GagMuzzleStraps", Pri: 16, Sprite: "MuzzleCollar", OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
-// ---- Good Girl Gag (plugged: PlugGags/GoodGirlGag; open: OpenGags) ----
+// ---- Good Girl ----
 AddModel({
 	Name: "GoodGirlGagModel",
 	Folder: "PlugGags/GoodGirlGag",
@@ -230,13 +193,11 @@ AddModel({
 			Sprite: "GoodGirlGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
-// ---- Open panel / muzzle / cyber / ornamental (Models/PlugGags/OpenGags) ----
+// ---- OPEN PLUG VARIANTS (standalone — do NOT use GetModelWithExtraLayers) ----
+
 AddModel({
 	Name: "PanelGagOpenModel",
 	Folder: "PlugGags/OpenGags",
@@ -246,24 +207,38 @@ AddModel({
 	Categories: ["Restraints", "Gags", "OpenGag"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "PanelOpen", Layer: "GagFlat", Pri: 5,
+		{ Name: "PanelGagOpen", Layer: "GagFlat", Pri: 5,
 			Sprite: "PanelGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 17,
 			Sprite: "BallStrap", Folder: "GagLeather",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
-AddModel(GetModelWithExtraLayers("PanelGagOpenHarnessModel", "PanelGagOpenModel", [
-	{ Name: "Harness", Layer: "GagFlatStraps", Pri: 19,
-		Sprite: "PanelHarness", Folder: "GagLeather",
-		OffsetX: 942, OffsetY: 200, Invariant: true },
-], "PanelGagOpenModel", false));
+// Full standalone harness open (was broken via GetModelWithExtraLayers)
+AddModel({
+	Name: "PanelGagOpenHarnessModel",
+	Folder: "PlugGags/OpenGags",
+	TopLevel: true,
+	Group: "Mouth",
+	Restraint: true,
+	Categories: ["Restraints", "Gags", "OpenGag"],
+	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
+	Layers: ToLayerMap([
+		{ Name: "PanelGagOpen", Layer: "GagFlat", Pri: 5,
+			Sprite: "PanelGagOpen",
+			OffsetX: 942, OffsetY: 200, Invariant: true,
+			DisplacementSources: ["Head", "FaceGag"] },
+		{ Name: "Strap", Layer: "GagStraps", Pri: 17,
+			Sprite: "BallStrap", Folder: "GagLeather",
+			OffsetX: 942, OffsetY: 200, Invariant: true },
+		{ Name: "Harness", Layer: "GagFlatStraps", Pri: 19,
+			Sprite: "PanelHarness", Folder: "GagLeather",
+			OffsetX: 942, OffsetY: 200, Invariant: true },
+	])
+});
 
 AddModel({
 	Name: "SmallLeatherPanelGagOpenModel",
@@ -274,15 +249,12 @@ AddModel({
 	Categories: ["Restraints", "Gags", "OpenGag"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "SmallPanelOpen", Layer: "GagFlat", Pri: 5,
+		{ Name: "SmallLeatherPanelGagOpen", Layer: "GagFlat", Pri: 5,
 			Sprite: "SmallLeatherPanelGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
 		{ Name: "Strap", Layer: "GagStraps", Pri: 17,
 			Sprite: "BallStrap", Folder: "GagLeather",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
@@ -296,13 +268,10 @@ AddModel({
 	Categories: ["Restraints", "Gags", "OpenGag", "Cyber"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "CyberOpen", Layer: "GagFlat", Pri: 5,
+		{ Name: "CyberPlugGagOpen", Layer: "GagFlat", Pri: 5,
 			Sprite: "CyberPlugGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
@@ -323,9 +292,6 @@ AddModel({
 			Sprite: "OTNRivets", Folder: "PlugGags/SteelMuzzle",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			NoOverride: true, TieToLayer: "SteelMuzzleOpen" },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
@@ -349,13 +315,9 @@ AddModel({
 			Sprite: "OTNStrapRivets", Folder: "PlugGags/BlacksteelMuzzle",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			NoOverride: true, TieToLayer: "OTNStrap" },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
-// Miko open — prefer single composite from OpenGags (OrnamentalGagOpen.png)
 AddModel({
 	Name: "OrnamentalGagOpenModel",
 	Folder: "PlugGags/OpenGags",
@@ -365,17 +327,14 @@ AddModel({
 	Categories: ["Restraints", "Gags", "OpenGag"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "OrnamentalOpen", Layer: "GagFlat", Pri: 6,
+		{ Name: "OrnamentalGagOpen", Layer: "GagFlat", Pri: 6,
 			Sprite: "OrnamentalGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
-		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
-			Sprite: "TongueTip", Folder: "RingGags",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 	])
 });
 
-// ---- Drool SFX overlays (cosmetic) + breath ----
+// Drool / breath overlays
 for (let i = 1; i <= 4; i++) {
 	AddModel({
 		Name: "RingGagDroolS" + i,
