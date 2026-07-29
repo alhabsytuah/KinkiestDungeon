@@ -5,8 +5,17 @@
  * Asset layout:
  *   Models/RingGags/           — ring / spider / tongue / large / latex
  *   Models/PlugGags/           — plugged plug-gag sets + CommonPlug
- *   Models/PlugGags/OpenGags/  — open (unplugged) sprites
+ *   Models/PlugGags/OpenGags/  — open (unplugged) sprites (canonical)
  *   Models/SFX/                — drool / breath overlays
+ *
+ * OpenGags inventory (as of re-sync):
+ *   PanelGagOpen.png
+ *   SmallLeatherPanelGagOpen.png
+ *   CyberPlugGagOpen.png
+ *   GoodGirlGagOpen.png  (+ GoodGirlGag.png optional base)
+ *   SteelMuzzleOpen.png
+ *   BlacksteelMuzzleOpen.png
+ *   OrnamentalGagOpen.png  (Miko open composite)
  */
 
 // ---- Core ring gag ----
@@ -192,7 +201,7 @@ AddModel({
 	])
 });
 
-// ---- Good Girl Gag (plugged uses PlugGags/GoodGirlGag; open uses OpenGags) ----
+// ---- Good Girl Gag (plugged: PlugGags/GoodGirlGag; open: OpenGags) ----
 AddModel({
 	Name: "GoodGirlGagModel",
 	Folder: "PlugGags/GoodGirlGag",
@@ -227,7 +236,7 @@ AddModel({
 	])
 });
 
-// ---- Open panel / muzzle / cyber (Models/PlugGags/OpenGags) ----
+// ---- Open panel / muzzle / cyber / ornamental (Models/PlugGags/OpenGags) ----
 AddModel({
 	Name: "PanelGagOpenModel",
 	Folder: "PlugGags/OpenGags",
@@ -346,26 +355,20 @@ AddModel({
 	])
 });
 
-// Miko / ornamental open (panel + ring; no plug)
+// Miko open — prefer single composite from OpenGags (OrnamentalGagOpen.png)
 AddModel({
 	Name: "OrnamentalGagOpenModel",
-	Folder: "PlugGags/OrnamentalGag",
+	Folder: "PlugGags/OpenGags",
 	TopLevel: true,
 	Group: "Mouth",
 	Restraint: true,
 	Categories: ["Restraints", "Gags", "OpenGag"],
 	AddPose: ["FaceGag", "StuffMouth", "BallMouth"],
 	Layers: ToLayerMap([
-		{ Name: "Panel", Layer: "GagFlat", Pri: 6,
-			Sprite: "OrnamentalGagPanel",
+		{ Name: "OrnamentalOpen", Layer: "GagFlat", Pri: 6,
+			Sprite: "OrnamentalGagOpen",
 			OffsetX: 942, OffsetY: 200, Invariant: true,
 			DisplacementSources: ["Head", "FaceGag"] },
-		{ Name: "Ring", Layer: "Gag", Pri: 7,
-			Sprite: "OrnamentalGagRing",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
-		{ Name: "Mouth", Layer: "GagUnder", Pri: -5,
-			Sprite: "OrnamentalGagMouth",
-			OffsetX: 942, OffsetY: 200, Invariant: true },
 		{ Name: "TongueTip", Layer: "Gag", Pri: 1,
 			Sprite: "TongueTip", Folder: "RingGags",
 			OffsetX: 942, OffsetY: 200, Invariant: true },
