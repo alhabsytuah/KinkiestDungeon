@@ -20,10 +20,38 @@ interface KDStruggleGroupReturn {
     image?: string
 }
 
-// RingGags plug/unplug helpers (defined later in RingGagsPlug.ts; resolved at call time)
+// RingGags helpers (defined in RingGagsPlug.ts; optional at call time)
 declare function RG_IsSwapPair(item: any): boolean;
 declare function RG_IsPluggedVariant(name: string): boolean;
 declare function RG_DoPlayerPlugSwap(item: any): boolean;
+
+/** Local pair map so PlugSwap UI works even before/without RingGagsPlug runtime. */
+let KD_RG_SWAP_PAIRS: Record<string, string> = {
+	CyberPlugGag: "CyberPlugGagOpen",
+	GoodGirlGag: "GoodGirlGagOpen",
+	MikoGag: "MikoGagOpen",
+	PanelPlugGagHarness: "PanelPlugGagHarnessOpen",
+	PanelPlugGag: "PanelPlugGagOpen",
+	MaidMuzzle: "MaidMuzzleOpen",
+	CableGag: "CableGagOpen",
+	NylonCableGag: "NylonCableGagOpen",
+	SteelMuzzleGag: "SteelMuzzleGagOpen",
+	BlacksteelMuzzleGag: "BlacksteelMuzzleGagOpen",
+};
+let KD_RG_SWAP_REVERSE: Record<string, string> = {};
+(function () {
+	for (let k of Object.keys(KD_RG_SWAP_PAIRS)) KD_RG_SWAP_REVERSE[KD_RG_SWAP_PAIRS[k]] = k;
+})();
+function KD_RG_IsSwapPairLocal(item: any): boolean {
+	if (!item || !item.name) return false;
+	if (typeof RG_IsSwapPair === "function") return !!RG_IsSwapPair(item);
+	return !!(KD_RG_SWAP_PAIRS[item.name] || KD_RG_SWAP_REVERSE[item.name]);
+}
+function KD_RG_IsPluggedLocal(name: string): boolean {
+	if (!name) return false;
+	if (typeof RG_IsPluggedVariant === "function") return !!RG_IsPluggedVariant(name);
+	return !!KD_RG_SWAP_PAIRS[name];
+}
 
 let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, query: boolean, target: entity, entity: entity) => KDStruggleGroupReturn>  = {
 	Struggle: (data, i, query, target, entity) => {
@@ -235,12 +263,11 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 	/** RingGags: plug / unplug for swap-pair plug gags */
 	PlugSwap: (data, i, query, target, entity) => {
 		let {x, y, ButtonWidth, sg, button_index, item} = {...data};
-		let hasRG = typeof RG_IsSwapPair === "function";
-		let isSwap = !!(hasRG && item && RG_IsSwapPair(item));
+		let isSwap = KD_RG_IsSwapPairLocal(item);
 		let curse = item && KDGetCurse(item);
 		let handsFree = !KinkyDungeonIsArmsBound() && !KinkyDungeonIsHandsBound();
 		let allowed = !!(isSwap && !curse && sg && !sg.blocked && handsFree);
-		let plugged = !!(hasRG && item && typeof RG_IsPluggedVariant === "function" && RG_IsPluggedVariant(item.name));
+		let plugged = !!(item && KD_RG_IsPluggedLocal(item.name));
 		let iconRel = plugged ? "InventoryAction/Unplug.png" : "InventoryAction/Plug.png";
 
 		let action = (_b) => {
@@ -255,6 +282,8 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 				KDSendInput("plugSwap", { group: sg.group, index: itemIndex });
 			} else if (typeof RG_DoPlayerPlugSwap === "function") {
 				RG_DoPlayerPlugSwap(item);
+			} else {
+				KinkyDungeonSendTextMessage(6, "Plug system not loaded.", "#cc6680", 2);
 			}
 			return true;
 		};
@@ -269,7 +298,6 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 			};
 		}
 
-		// Only draw for actual swap-pair items (open/plugged plug gags)
 		if (isSwap && !curse) {
 			let btnColor = allowed ? KDButtonColorIntense : "rgba(255, 50, 50, 0.5)";
 			if (DrawButtonKDEx(
@@ -331,7 +359,6 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 
 function KDGetStruggleButtons(data: KDStruggleButtonGetData) {
 	if (KDToggles.StruggleContext) return ["ContextMenu"];
-	// PlugSwap always listed; KDStruggleButtons.PlugSwap only draws for swap-pair gags
 	return ["Struggle", "CurseInfo", "CurseUnlock", "Cut", "Remove", "Pick", "PlugSwap"];
 }
 
