@@ -27,6 +27,7 @@ var RG_SWAP_PAIRS_REVERSE: any = {};
 	for (var k in RG_SWAP_PAIRS) RG_SWAP_PAIRS_REVERSE[RG_SWAP_PAIRS[k]] = k;
 })();
 
+/** Open restraint Model names (must exist in Data/ModelList_RingGags.ts). */
 var RG_OPEN_MODEL_OVERRIDES: any = {
 	CyberPlugGag: "CyberPlugGagOpenModel",
 	GoodGirlGag: "GoodGirlGagOpenModel",
@@ -40,7 +41,6 @@ var RG_OPEN_MODEL_OVERRIDES: any = {
 	BlacksteelMuzzleGag: "BlacksteelMuzzleOpenModel",
 };
 
-/** Canonical display strings so we never depend on TextGet at boot. */
 var RG_OPEN_TEXT: any = {
 	PanelPlugGagHarness: {
 		title: "Harness Plug Gag (Open)",
@@ -131,67 +131,60 @@ function RG_IsOpenVariant(name) {
 	return !!RG_SWAP_PAIRS_REVERSE[name];
 }
 
-/** Write Restraint{name}, Desc, Desc2 into the live text table. */
-function RG_SetRestraintTextKeys(restraintName, title, desc, desc2) {
-	var t = title || restraintName;
-	var d = desc || "";
-	var d2 = desc2 || "The plug has been removed; the mouth stays open.";
-	var keys = [
-		["Restraint" + restraintName, t],
-		["Restraint" + restraintName + "Desc", d],
-		["Restraint" + restraintName + "Desc2", d2],
-	];
-	for (var i = 0; i < keys.length; i++) {
-		var k = keys[i][0];
-		var v = keys[i][1];
-		try {
-			if (typeof addTextKey === "function") addTextKey(k, v);
-		} catch (_e0) {}
-		try {
-			if (typeof Text !== "undefined" && Text && typeof Text !== "function") {
-				(Text as any)[k] = v;
-			}
-		} catch (_e1) {}
-		try {
-			var g: any = (typeof globalThis !== "undefined") ? globalThis : {};
-			if (g.Text && typeof g.Text === "object") g.Text[k] = v;
-			if (g.KDText && typeof g.KDText === "object") g.KDText[k] = v;
-		} catch (_e2) {}
-	}
+function RG_ForceCharacterRefresh() {
 	try {
-		if (typeof KinkyDungeonAddRestraintText === "function")
-			KinkyDungeonAddRestraintText(restraintName, t, d, d2);
-	} catch (_e3) {}
+		if (typeof KDUpdateItemEventCache !== "undefined") KDUpdateItemEventCache = true;
+		if (typeof KDRefreshCharacter !== "undefined" && typeof KinkyDungeonPlayer !== "undefined")
+			KDRefreshCharacter.set(KinkyDungeonPlayer, true);
+		if (typeof KinkyDungeonDressPlayer === "function") KinkyDungeonDressPlayer();
+		if (typeof CharacterRefresh === "function" && typeof KinkyDungeonPlayer !== "undefined")
+			CharacterRefresh(KinkyDungeonPlayer);
+		if (typeof KinkyDungeonUpdateStruggleGroups === "function") KinkyDungeonUpdateStruggleGroups();
+	} catch (_e) {}
 }
 
+/** Register Restraint{openName} / Desc / Desc2 so tooltips are not [NotFound]. */
 function RG_RegisterOpenVariantText(baseName, openName) {
 	var pack = RG_OPEN_TEXT[baseName];
-	var title = pack ? pack.title : (openName + " (Open)");
+	var title = pack ? pack.title : (baseName + " (Open)");
 	var desc = pack ? pack.desc : "";
 	var desc2 = pack ? pack.desc2 : "The plug has been removed; the mouth stays open.";
 
-	// Prefer live base strings when TextGet is ready and not a missing-key stub.
+	// Prefer live base strings when available and not stubs
 	try {
 		if (typeof TextGet === "function") {
 			var bt = TextGet("Restraint" + baseName);
 			var bd = TextGet("Restraint" + baseName + "Desc");
 			var bd2 = TextGet("Restraint" + baseName + "Desc2");
-			var bad = function (s, key) {
-				if (!s || s === key) return true;
-				if (String(s).indexOf("[NotFound]") >= 0) return true;
-				if (String(s).indexOf("Restraint" + baseName) === 0 && String(s).length < 64) return true;
+			var isBad = function (s, key) {
+				if (s == null || s === "" || s === key) return true;
+				var str = String(s);
+				if (str.indexOf("[NotFound]") >= 0) return true;
+				if (str.indexOf("Restraint" + baseName) === 0) return true;
 				return false;
 		};
-			if (!bad(bt, "Restraint" + baseName))
-				title = bt + " (Open)";
-			if (!bad(bd, "Restraint" + baseName + "Desc"))
-				desc = bd;
-			if (!bad(bd2, "Restraint" + baseName + "Desc2"))
-				desc2 = bd2 + (String(bd2).indexOf("plug") >= 0 ? "" : " The plug has been removed.");
+			if (!isBad(bt, "Restraint" + baseName)) title = bt + " (Open)";
+			if (!isBad(bd, "Restraint" + baseName + "Desc")) desc = bd;
+			if (!isBad(bd2, "Restraint" + baseName + "Desc2")) desc2 = bd2;
 		}
-	} catch (_e) {}
+	} catch (_e0) {}
 
-	RG_SetRestraintTextKeys(openName, title, desc, desc2);
+	// Canonical API used by the game for dynamic restraints
+	try {
+		if (typeof KinkyDungeonDupeRestraintText === "function")
+			KinkyDungeonDupeRestraintText(baseName, openName);
+	} catch (_e1) {}
+	try {
+		if (typeof KinkyDungeonAddRestraintText === "function")
+			KinkyDungeonAddRestraintText(openName, title, desc, desc2);
+	} catch (_e2) {}
+	try {
+		if (typeof addTextKey === "function") {
+			addTextKey("Restraint" + openName, title);
+			addTextKey("Restraint" + openName + "Desc", desc);
+			addTextKey("Restraint" + openName + "Desc2", desc2);
+		}
+	} catch (_e3) {}
 }
 
 /** Mutate equipped item to its plug/open sibling in place. */
@@ -199,6 +192,7 @@ function RG_PerformSwap(item) {
 	if (!item || !item.name) return false;
 	var siblingName = RG_GetSwapSibling(item.name);
 	if (!siblingName) return false;
+
 	var siblingDef = (typeof KinkyDungeonGetRestraintByName === "function")
 		? KinkyDungeonGetRestraintByName(siblingName)
 		: null;
@@ -208,14 +202,35 @@ function RG_PerformSwap(item) {
 		return false;
 	}
 
-	// Ensure open-side text exists before UI refreshes
-	if (RG_IsOpenVariant(siblingName)) {
-		var baseForText = RG_SWAP_PAIRS_REVERSE[siblingName];
-		if (baseForText) RG_RegisterOpenVariantText(baseForText, siblingName);
+	var wasPlugged = RG_IsPluggedVariant(item.name);
+	var baseName = wasPlugged ? item.name : RG_SWAP_PAIRS_REVERSE[item.name];
+	var openModel = baseName ? RG_OPEN_MODEL_OVERRIDES[baseName] : null;
+
+	// Ensure text + model on the open def before UI reads them
+	if (baseName && RG_IsOpenVariant(siblingName)) {
+		RG_RegisterOpenVariantText(baseName, siblingName);
+		var sd: any = siblingDef;
+		if (openModel) {
+			sd.Model = openModel;
+			sd.Asset = openModel;
+		}
 	}
 
 	var oldName = item.name;
 	item.name = siblingName;
+
+	// Force model on the live item instance (some paths cache appearance from item fields)
+	try {
+		var itemAny: any = item;
+		if (RG_IsOpenVariant(siblingName) && openModel) {
+			itemAny.Model = openModel;
+			itemAny.type = siblingName;
+		} else if (RG_IsPluggedVariant(siblingName) && siblingDef) {
+			var pluggedModel = (siblingDef as any).Model;
+			if (pluggedModel) itemAny.Model = pluggedModel;
+			itemAny.type = siblingName;
+		}
+	} catch (_em) {}
 
 	try {
 		if (typeof KinkyDungeonInventory !== "undefined" && typeof KDInventoryType === "function") {
@@ -235,23 +250,17 @@ function RG_PerformSwap(item) {
 	}
 
 	var def = (typeof KDRestraint === "function") ? KDRestraint(item) : null;
-	if (def && def.DefaultLock && !item.lock
+	if (def && (def as any).DefaultLock && !item.lock
 			&& RG_IsPluggedVariant(siblingName)
 			&& typeof KinkyDungeonLock === "function") {
-		try { KinkyDungeonLock(item, def.DefaultLock, true); } catch (_e2) {}
+		try { KinkyDungeonLock(item, (def as any).DefaultLock, true); } catch (_e2) {}
 	}
 
 	try {
-		if (typeof KDUpdateItemEventCache !== "undefined") KDUpdateItemEventCache = true;
 		if (typeof KDUpdateLinkCaches === "function") KDUpdateLinkCaches(item);
-		if (typeof KDRefreshCharacter !== "undefined" && typeof KinkyDungeonPlayer !== "undefined")
-			KDRefreshCharacter.set(KinkyDungeonPlayer, true);
-		if (typeof KinkyDungeonDressPlayer === "function") KinkyDungeonDressPlayer();
-		if (typeof CharacterRefresh === "function" && typeof KinkyDungeonPlayer !== "undefined")
-			CharacterRefresh(KinkyDungeonPlayer);
-		if (typeof KinkyDungeonUpdateStruggleGroups === "function") KinkyDungeonUpdateStruggleGroups();
 	} catch (_e3) {}
 
+	RG_ForceCharacterRefresh();
 	return true;
 }
 
@@ -264,10 +273,11 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 	var openName = RG_SWAP_PAIRS[baseName];
 	if (!openName) return false;
 
-	var already = (typeof KinkyDungeonGetRestraintByName === "function")
-		&& KinkyDungeonGetRestraintByName(openName);
+	var existing = (typeof KinkyDungeonGetRestraintByName === "function")
+		? KinkyDungeonGetRestraintByName(openName)
+		: null;
 
-	if (!already) {
+	if (!existing) {
 		var copy: any;
 		try { copy = JSON.parse(JSON.stringify(base)); }
 		catch (_e) { return false; }
@@ -275,11 +285,10 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		copy.name = openName;
 		copy.inventory = true;
 		copy.weight = 0;
-		// Keep collection/loot as the plugged form, but text keys use openName
-		copy.inventoryAs = baseName;
+		// Do NOT set inventoryAs to base — that can keep plugged icons/models in some UI paths
+		delete copy.inventoryAs;
 		copy.inventoryAsSelf = openName;
-		copy.Model = modelOverride || "RingGag";
-		// Preview / asset: use open model name so icon path resolves cleanly when present
+		copy.Model = modelOverride || "PanelGagOpenModel";
 		copy.Asset = modelOverride || openName;
 		copy.gag = 0.1;
 		copy.gagFamily = baseName;
@@ -312,18 +321,18 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		var baseAny: any = base;
 		if (!baseAny.gagFamily) baseAny.gagFamily = baseName;
 	} else {
-		// Refresh model pointer if defs already exist from an older session/build
-		try {
-			var existing: any = KinkyDungeonGetRestraintByName(openName);
-			if (existing && modelOverride) {
-				existing.Model = modelOverride;
-				existing.Asset = modelOverride;
-				existing.inventoryAsSelf = openName;
-			}
-		} catch (_e4) {}
+		var ex: any = existing;
+		if (modelOverride) {
+			ex.Model = modelOverride;
+			ex.Asset = modelOverride;
+		}
+		ex.inventoryAsSelf = openName;
+		delete ex.inventoryAs;
+		ex.gag = 0.1;
+		if (!ex.shrine) ex.shrine = [];
+		if (ex.shrine.indexOf("OpenGag") < 0) ex.shrine = ex.shrine.concat(["OpenGag"]);
 	}
 
-	// Always (re)register text so NotFound keys go away even if def pre-existed
 	RG_RegisterOpenVariantText(baseName, openName);
 	return true;
 }
@@ -335,16 +344,30 @@ function RG_RegisterOpenVariants() {
 	}
 	if (typeof KinkyDungeonRefreshRestraintsCache === "function")
 		KinkyDungeonRefreshRestraintsCache();
+
+	// Debug: confirm models exist
+	try {
+		if (typeof ModelDefs !== "undefined" && typeof console !== "undefined" && console.log) {
+			var missing = [];
+			for (var bn in RG_OPEN_MODEL_OVERRIDES) {
+				var mn = RG_OPEN_MODEL_OVERRIDES[bn];
+				if (!ModelDefs[mn]) missing.push(mn);
+			}
+			if (missing.length)
+				console.warn("[RingGags] Open models missing from ModelDefs (run npm run pack?):", missing);
+			else
+				console.log("[RingGags] All open plug models present in ModelDefs");
+		}
+	} catch (_ed) {}
 }
 
-/** Execute player plug/unplug on an equipped item. */
 function RG_DoPlayerPlugSwap(item) {
 	if (!item || !RG_IsSwapPair(item)) return false;
 	var wasPlugged = RG_IsPluggedVariant(item.name);
 	var ok = RG_PerformSwap(item);
 	if (!ok) return false;
 
-	if (wasPlugged) RG_PlayUnplug();
+	if (wasPlugged && typeof RG_PlayUnplug === "function") RG_PlayUnplug();
 
 	var msg = wasPlugged ? RG_Pick(RG_MSG_PLAYER_UNPLUG) : RG_Pick(RG_MSG_PLAYER_PLUG);
 	if (typeof KinkyDungeonSendTextMessage === "function")
@@ -439,7 +462,6 @@ function RG_RegisterPlugSwap() {
 		console.log("[RingGags] PlugSwap logic + inventory action registered (struggle UI in KDStruggleGroups)");
 }
 
-/** Open-gag status icon on Buffs & Stats (Game/Buffs/opengag_debuff.png). */
 function RG_RegisterOpenGagDebuff() {
 	if (typeof KDDrawBuffIcons !== "function" || RG_DebuffWrapped) return;
 	var RG_OrigDrawBuffIcons = KDDrawBuffIcons;
@@ -464,8 +486,6 @@ function RG_RegisterOpenGagDebuff() {
 		console.log("[RingGags] Open-gag debuff icon hooked");
 }
 
-// Deferred init: open variants need base restraints in cache.
-// Text is re-applied on a short delay so localization tables are loaded.
 (function RG_PlugInit() {
 	var tries = 0;
 	function tick() {
@@ -477,7 +497,6 @@ function RG_RegisterOpenGagDebuff() {
 		RG_RegisterOpenVariants();
 		RG_RegisterPlugSwap();
 		RG_RegisterOpenGagDebuff();
-		// Second pass after text files usually finish loading
 		if (typeof setTimeout === "function") {
 			setTimeout(function () {
 				for (var baseName in RG_SWAP_PAIRS)
