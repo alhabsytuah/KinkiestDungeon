@@ -5,6 +5,11 @@
  */
 "use strict";
 
+// Global object for monkey-patches (TS forbids assigning to declared functions).
+var RG_G: any = (typeof globalThis !== "undefined")
+	? globalThis
+	: (typeof window !== "undefined" ? window : {});
+
 // =========================================================================
 // Phase 4: Plug / Unplug (swap pairs)
 // =========================================================================
@@ -185,7 +190,9 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		addTextKey("Restraint" + openName + "Desc2", desc2 || "The plug has been removed; the mouth stays open.");
 	}
 
-	if (!base.gagFamily) base.gagFamily = baseName;
+	// gagFamily is a RingGags extension field, not on the typed restraint interface
+	var baseAny: any = base;
+	if (!baseAny.gagFamily) baseAny.gagFamily = baseName;
 	return true;
 }
 
@@ -264,23 +271,25 @@ function RG_RegisterPlugSwap() {
 		};
 	}
 
+	// KDInputTypes handlers must return string
 	if (typeof KDInputTypes !== "undefined") {
-		KDInputTypes["plugSwap"] = function (data) {
+		KDInputTypes["plugSwap"] = function (data: any): string {
 			var item = (typeof KinkyDungeonGetRestraintItem === "function")
 				? KinkyDungeonGetRestraintItem(data.group)
 				: null;
-			if (!item) return;
+			if (!item) return "";
 			if (data.index && typeof KDDynamicLinkListSurface === "function") {
 				var surfaceItems = KDDynamicLinkListSurface(item);
 				if (surfaceItems && surfaceItems[data.index]) item = surfaceItems[data.index];
 			}
-			if (!item || !RG_IsSwapPair(item)) return;
+			if (!item || !RG_IsSwapPair(item)) return "";
 			RG_DoPlayerPlugSwap(item);
+			return "";
 		};
 	}
 
 	if (typeof KDInventoryActionsDefault !== "undefined" && KDInventoryActionsDefault.restraint
-			&& !(KDInventoryActionsDefault as any)._rgPlugSwapWrapped) {
+			&& !KDInventoryActionsDefault._rgPlugSwapWrapped) {
 		var RG_OrigRestraintActions = KDInventoryActionsDefault.restraint;
 		KDInventoryActionsDefault.restraint = function (item) {
 			var ret = RG_OrigRestraintActions.call(this, item);
@@ -290,10 +299,10 @@ function RG_RegisterPlugSwap() {
 			} catch (_e) {}
 			return ret;
 		};
-		(KDInventoryActionsDefault as any)._rgPlugSwapWrapped = true;
+		KDInventoryActionsDefault._rgPlugSwapWrapped = true;
 	}
 
-	// Struggle panel (main UI next to worn restraints) — primary path players use
+	// Struggle panel (main UI next to worn restraints)
 	if (typeof KDStruggleButtons !== "undefined" && !KDStruggleButtons.PlugSwap) {
 		KDStruggleButtons.PlugSwap = function (data, i, query, _target, _entity) {
 			var x = data.x, y = data.y, ButtonWidth = data.ButtonWidth,
@@ -361,25 +370,26 @@ function RG_RegisterPlugSwap() {
 		};
 	}
 
-	if (typeof KDGetStruggleButtons === "function" && !(KDGetStruggleButtons as any)._rgWrapped) {
-		var RG_OrigGetStruggleButtons = KDGetStruggleButtons;
-		KDGetStruggleButtons = function (data) {
+	// Wrap via global object — direct assignment is TS2630
+	if (typeof RG_G.KDGetStruggleButtons === "function" && !RG_G.KDGetStruggleButtons._rgWrapped) {
+		var RG_OrigGetStruggleButtons = RG_G.KDGetStruggleButtons;
+		RG_G.KDGetStruggleButtons = function (data) {
 			var ret = RG_OrigGetStruggleButtons(data);
 			if (ret.indexOf("ContextMenu") >= 0) return ret;
 			if (ret.indexOf("PlugSwap") < 0) return ret.concat(["PlugSwap"]);
 			return ret;
 		};
-		(KDGetStruggleButtons as any)._rgWrapped = true;
+		RG_G.KDGetStruggleButtons._rgWrapped = true;
 	}
 
-	if (typeof KDGetStruggleContextMenu === "function" && !(KDGetStruggleContextMenu as any)._rgWrapped) {
-		var RG_OrigGetStruggleContextMenu = KDGetStruggleContextMenu;
-		KDGetStruggleContextMenu = function (item, sg, target, entity) {
+	if (typeof RG_G.KDGetStruggleContextMenu === "function" && !RG_G.KDGetStruggleContextMenu._rgWrapped) {
+		var RG_OrigGetStruggleContextMenu = RG_G.KDGetStruggleContextMenu;
+		RG_G.KDGetStruggleContextMenu = function (item, sg, target, entity) {
 			var ret = RG_OrigGetStruggleContextMenu(item, sg, target, entity);
 			if (ret.indexOf("PlugSwap") < 0) return ret.concat(["PlugSwap"]);
 			return ret;
 		};
-		(KDGetStruggleContextMenu as any)._rgWrapped = true;
+		RG_G.KDGetStruggleContextMenu._rgWrapped = true;
 	}
 
 	if (typeof console !== "undefined" && console.log)
@@ -388,9 +398,9 @@ function RG_RegisterPlugSwap() {
 
 /** Open-gag status icon on Buffs & Stats (uses Game/Buffs/opengag_debuff.png). */
 function RG_RegisterOpenGagDebuff() {
-	if (typeof KDDrawBuffIcons !== "function" || (KDDrawBuffIcons as any)._rgDebuffWrapped) return;
-	var RG_OrigDrawBuffIcons = KDDrawBuffIcons;
-	KDDrawBuffIcons = function (minXX, minYY, statsDraw, side) {
+	if (typeof RG_G.KDDrawBuffIcons !== "function" || RG_G.KDDrawBuffIcons._rgDebuffWrapped) return;
+	var RG_OrigDrawBuffIcons = RG_G.KDDrawBuffIcons;
+	RG_G.KDDrawBuffIcons = function (minXX, minYY, statsDraw, side) {
 		try {
 			if (statsDraw && typeof RG_HasOnlyOpenGags === "function" && RG_HasOnlyOpenGags()) {
 				statsDraw.rg_opengag = {
@@ -405,7 +415,7 @@ function RG_RegisterOpenGagDebuff() {
 		} catch (_e) {}
 		return RG_OrigDrawBuffIcons.call(this, minXX, minYY, statsDraw, side);
 	};
-	(KDDrawBuffIcons as any)._rgDebuffWrapped = true;
+	RG_G.KDDrawBuffIcons._rgDebuffWrapped = true;
 	if (typeof console !== "undefined" && console.log)
 		console.log("[RingGags] Open-gag debuff icon hooked");
 }
