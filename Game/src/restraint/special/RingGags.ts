@@ -51,30 +51,46 @@ function RG_RandInt(min, max) {
 }
 function RG_RandomDroolVisual() { return RG_RandInt(1, 4); }
 
-/** Full path Audio/<name>.ogg like original mod; bare-name fallback. */
+/**
+ * Vanilla signature:
+ *   AudioPlayInstantSoundKD(KinkyDungeonRootDirectory + "Audio/" + name + ".ogg", volume?)
+ * NEVER pass a bare name — that 404s as :8080/<name>
+ */
 function RG_PlaySFX(name) {
 	if (!name) return;
 	try {
-		var root = (typeof KinkyDungeonRootDirectory !== "undefined") ? KinkyDungeonRootDirectory : "";
-		var full = root + "Audio/" + name + ".ogg";
+		if (typeof KDSoundEnabled === "function" && !KDSoundEnabled()) return;
+		var root =
+			typeof KinkyDungeonRootDirectory !== "undefined" && KinkyDungeonRootDirectory != null
+				? String(KinkyDungeonRootDirectory)
+				: "Game/";
+		var path = root + "Audio/" + name + ".ogg";
 		if (typeof AudioPlayInstantSoundKD === "function") {
-			try { AudioPlayInstantSoundKD(full); return; } catch (_e1) {}
-			try { AudioPlayInstantSoundKD(name); } catch (_e2) {}
+			AudioPlayInstantSoundKD(path, 1.0);
 		}
-	} catch (_e) {}
+	} catch (_e) {
+		/* missing file / autoplay — ignore */
+	}
 }
 function RG_PlayDrip() {
-	var n = RG_RandInt(1, 13); if (n === 7) n = 8;
+	var n = RG_RandInt(1, 13);
+	if (n === 7) n = 8;
 	RG_PlaySFX("drip" + n);
 }
-function RG_PlayGulp() { RG_PlaySFX("gulp" + RG_RandInt(1, 8)); }
-function RG_PlayUnplug() { RG_PlaySFX("unplug"); }
+function RG_PlayGulp() {
+	RG_PlaySFX("gulp" + RG_RandInt(1, 8));
+}
+function RG_PlayUnplug() {
+	RG_PlaySFX("unplug");
+}
 
 function RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax) {
 	var staminaRatio = staminaMax > 0 ? stamina / staminaMax : 1;
-	return staminaRatio < RG_BREATH_TIRED
-		|| staminaRatio < RG_BREATH_HUFFING
-		|| (distractionMax > 0 && distraction / distractionMax >= RG_BREATH_AROUSED);
+	return (
+		staminaRatio < RG_BREATH_TIRED ||
+		staminaRatio < RG_BREATH_HUFFING ||
+		(distractionMax > 0 && distraction / distractionMax >= RG_BREATH_AROUSED)
+	);
 }
 
 function RG_InitState() {
@@ -83,10 +99,14 @@ function RG_InitState() {
 	RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
 }
 function RG_ClearState() {
-	RG_State.DroolStage = 0; RG_State.DroolDuration = 0;
-	RG_State.Cycling = false; RG_State.CycleIndex = 0;
-	RG_State.DryingCooldown = 0; RG_State.BoundWipeFailCount = 0;
-	RG_State.CurrentOverlay = 0; RG_State.BreathActive = false;
+	RG_State.DroolStage = 0;
+	RG_State.DroolDuration = 0;
+	RG_State.Cycling = false;
+	RG_State.CycleIndex = 0;
+	RG_State.DryingCooldown = 0;
+	RG_State.BoundWipeFailCount = 0;
+	RG_State.CurrentOverlay = 0;
+	RG_State.BreathActive = false;
 	RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
 }
 
@@ -95,13 +115,13 @@ function RG_HasOpenGag() {
 		var inv = rest.item;
 		var r = KDRestraint(inv);
 		if (!r || !r.shrine || r.shrine.indexOf("OpenGag") < 0) continue;
-		if (typeof RG_IsPluggedVariant === "function" && inv && RG_IsPluggedVariant(inv.name)) continue;
+		if (typeof RG_IsPluggedVariant === "function" && inv && RG_IsPluggedVariant(inv.name))
+			continue;
 		return true;
 	}
 	return false;
 }
 
-/** Every worn gag is open-mouth (not plugged / not sealed). */
 function RG_HasOnlyOpenGags() {
 	var hasAny = false;
 	for (var rest of KinkyDungeonAllRestraintDynamic()) {
@@ -111,14 +131,14 @@ function RG_HasOnlyOpenGags() {
 		hasAny = true;
 		if (typeof RG_IsPluggedVariant === "function" && inv && RG_IsPluggedVariant(inv.name))
 			return false;
-		if (!r.shrine || r.shrine.indexOf("OpenGag") === -1)
-			return false;
+		if (!r.shrine || r.shrine.indexOf("OpenGag") === -1) return false;
 	}
 	return hasAny;
 }
 
 function RG_IsStuffed() {
-	var hasRing = false, hasOther = false;
+	var hasRing = false,
+		hasOther = false;
 	for (var rest of KinkyDungeonAllRestraintDynamic()) {
 		var inv = rest.item;
 		var r = KDRestraint(inv);
@@ -142,17 +162,26 @@ function RG_GetDroolLockItem() {
 }
 
 function RG_SilentAddRestraint(name) {
-	var g: any = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
-	var oF = g.KinkyDungeonSendFloater, oA = g.AudioPlayInstantSoundKD;
-	var oT = g.KinkyDungeonSendTextMessage, oM = g.KinkyDungeonSendActionMessage;
+	var g: any =
+		typeof globalThis !== "undefined"
+			? globalThis
+			: typeof window !== "undefined"
+				? window
+				: {};
+	var oF = g.KinkyDungeonSendFloater,
+		oA = g.AudioPlayInstantSoundKD,
+		oT = g.KinkyDungeonSendTextMessage,
+		oM = g.KinkyDungeonSendActionMessage;
 	if (typeof oF === "function") g.KinkyDungeonSendFloater = function () {};
 	if (typeof oA === "function") g.AudioPlayInstantSoundKD = function () {};
 	if (typeof oT === "function") g.KinkyDungeonSendTextMessage = function () {};
 	if (typeof oM === "function") g.KinkyDungeonSendActionMessage = function () {};
 	var r = null;
-	try { r = KinkyDungeonAddRestraintIfWeaker(name, 0, true, undefined, false); }
-	catch (_e) { r = null; }
-	finally {
+	try {
+		r = KinkyDungeonAddRestraintIfWeaker(name, 0, true, undefined, false);
+	} catch (_e) {
+		r = null;
+	} finally {
 		if (typeof oF === "function") g.KinkyDungeonSendFloater = oF;
 		if (typeof oA === "function") g.AudioPlayInstantSoundKD = oA;
 		if (typeof oT === "function") g.KinkyDungeonSendTextMessage = oT;
@@ -161,13 +190,21 @@ function RG_SilentAddRestraint(name) {
 	return r;
 }
 function RG_SilentRemoveRestraint(group) {
-	var g: any = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
-	var oF = g.KinkyDungeonSendFloater, oA = g.AudioPlayInstantSoundKD, oT = g.KinkyDungeonSendTextMessage;
+	var g: any =
+		typeof globalThis !== "undefined"
+			? globalThis
+			: typeof window !== "undefined"
+				? window
+				: {};
+	var oF = g.KinkyDungeonSendFloater,
+		oA = g.AudioPlayInstantSoundKD,
+		oT = g.KinkyDungeonSendTextMessage;
 	if (typeof oF === "function") g.KinkyDungeonSendFloater = function () {};
 	if (typeof oA === "function") g.AudioPlayInstantSoundKD = function () {};
 	if (typeof oT === "function") g.KinkyDungeonSendTextMessage = function () {};
-	try { KinkyDungeonRemoveRestraint(group, false, false, true); }
-	catch (_e) {}
+	try {
+		KinkyDungeonRemoveRestraint(group, false, false, true);
+	} catch (_e) {}
 	finally {
 		if (typeof oF === "function") g.KinkyDungeonSendFloater = oF;
 		if (typeof oA === "function") g.AudioPlayInstantSoundKD = oA;
@@ -208,23 +245,45 @@ function RG_TickHandler(_e, _item, data) {
 		RG_State.DryingCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
 	}
 
-	var movedThisTick = false, prevTileX = RG_State.PrevX, prevTileY = RG_State.PrevY, movementBonus = 0;
+	var movedThisTick = false,
+		prevTileX = RG_State.PrevX,
+		prevTileY = RG_State.PrevY,
+		movementBonus = 0;
 	if (typeof KinkyDungeonPlayerEntity !== "undefined") {
-		var px = KinkyDungeonPlayerEntity.x, py = KinkyDungeonPlayerEntity.y;
+		var px = KinkyDungeonPlayerEntity.x,
+			py = KinkyDungeonPlayerEntity.y;
 		if (RG_State.PrevX >= 0 && (px !== RG_State.PrevX || py !== RG_State.PrevY)) {
-			movedThisTick = true; movementBonus = 1;
-			prevTileX = RG_State.PrevX; prevTileY = RG_State.PrevY;
+			movedThisTick = true;
+			movementBonus = 1;
+			prevTileX = RG_State.PrevX;
+			prevTileY = RG_State.PrevY;
 		}
-		RG_State.PrevX = px; RG_State.PrevY = py;
+		RG_State.PrevX = px;
+		RG_State.PrevY = py;
 	}
 
 	var breathActive = false;
 	if (droolEnabled) {
-		var stamina = (typeof KinkyDungeonStatStamina !== "undefined") ? KinkyDungeonStatStamina : 100;
-		var staminaMax = (typeof KinkyDungeonStatStaminaMax !== "undefined") ? KinkyDungeonStatStaminaMax : 100;
-		var distraction = (typeof KinkyDungeonStatDistraction !== "undefined") ? KinkyDungeonStatDistraction : 0;
-		var distractionMax = (typeof KinkyDungeonStatDistractionMax !== "undefined") ? KinkyDungeonStatDistractionMax : 100;
-		breathActive = RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax);
+		var stamina =
+			typeof KinkyDungeonStatStamina !== "undefined" ? KinkyDungeonStatStamina : 100;
+		var staminaMax =
+			typeof KinkyDungeonStatStaminaMax !== "undefined"
+				? KinkyDungeonStatStaminaMax
+				: 100;
+		var distraction =
+			typeof KinkyDungeonStatDistraction !== "undefined"
+				? KinkyDungeonStatDistraction
+				: 0;
+		var distractionMax =
+			typeof KinkyDungeonStatDistractionMax !== "undefined"
+				? KinkyDungeonStatDistractionMax
+				: 100;
+		breathActive = RG_ShouldShowBreath(
+			stamina,
+			staminaMax,
+			distraction,
+			distractionMax
+		);
 	}
 	RG_SetBreathOverlay(breathActive);
 
@@ -241,16 +300,27 @@ function RG_TickHandler(_e, _item, data) {
 	if (!hasDroolLock && (RG_State.Cycling || RG_State.DroolStage > 2)) {
 		var clamped = Math.min(RG_State.DroolStage, 2);
 		RG_State.DroolStage = clamped;
-		RG_State.Cycling = false; RG_State.CycleIndex = 0; RG_State.BoundWipeFailCount = 0;
+		RG_State.Cycling = false;
+		RG_State.CycleIndex = 0;
+		RG_State.BoundWipeFailCount = 0;
 		RG_SetDroolOverlay(clamped);
 	}
 
 	if (RG_State.DroolStage > 0 && !stuffed && movedThisTick && prevTileX >= 0) {
-		var puddleChance = hasDroolLock ? 0.6 : (RG_State.DroolStage === 2 && armsBound ? 0.1 : 0);
+		var puddleChance = hasDroolLock
+			? 0.6
+			: RG_State.DroolStage === 2 && armsBound
+				? 0.1
+				: 0;
 		if (puddleChance > 0 && Math.random() < puddleChance) {
 			try {
 				if (typeof KDCreateEffectTile === "function")
-					KDCreateEffectTile(prevTileX, prevTileY, { name: "DroolPuddle", duration: 5 }, 0);
+					KDCreateEffectTile(
+						prevTileX,
+						prevTileY,
+						{ name: "DroolPuddle", duration: 5 },
+						0
+					);
 			} catch (_ex) {}
 		}
 	}
@@ -267,8 +337,13 @@ function RG_TickHandler(_e, _item, data) {
 					var dcd = RG_COOLDOWNS[String(prevStage + 1)] || RG_COOLDOWNS["1"];
 					RG_State.DryingCooldown = RG_RandInt(dcd[0], dcd[1]);
 				} else {
-					RG_State.BoundWipeFailCount = 0; RG_State.Cycling = false; RG_State.CycleIndex = 0;
-					RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
+					RG_State.BoundWipeFailCount = 0;
+					RG_State.Cycling = false;
+					RG_State.CycleIndex = 0;
+					RG_State.DroolCooldown = RG_RandInt(
+						RG_COOLDOWNS["1"][0],
+						RG_COOLDOWNS["1"][1]
+					);
 				}
 			}
 		}
@@ -278,11 +353,15 @@ function RG_TickHandler(_e, _item, data) {
 	if (!episodeActive) {
 		RG_State.DroolCooldown -= 1 + movementBonus;
 		if (RG_State.DroolCooldown <= 0) {
-			var nextStage, isCycling = !!RG_State.Cycling;
+			var nextStage,
+				isCycling = !!RG_State.Cycling;
 			if (isCycling) {
 				nextStage = RG_CYCLE[RG_State.CycleIndex % RG_CYCLE.length];
 				RG_State.CycleIndex += 1;
-				RG_State.DroolDuration = RG_RandInt(RG_DURATIONS.cycle[0], RG_DURATIONS.cycle[1]);
+				RG_State.DroolDuration = RG_RandInt(
+					RG_DURATIONS.cycle[0],
+					RG_DURATIONS.cycle[1]
+				);
 			} else {
 				nextStage = RG_State.DroolStage + 1;
 				if (nextStage > maxStage) nextStage = maxStage;
@@ -301,10 +380,14 @@ function RG_TickHandler(_e, _item, data) {
 			RG_State.DroolEpisode += 1;
 			if (armsBound) RG_State.BoundWipeFailCount += 1;
 			if (hasDroolLock && RG_State.DroolStage >= 4 && !RG_State.Cycling) {
-				RG_State.Cycling = true; RG_State.CycleIndex = 0;
+				RG_State.Cycling = true;
+				RG_State.CycleIndex = 0;
 			}
-			var cd = RG_State.Cycling ? RG_COOLDOWNS.cycle
-				: (RG_COOLDOWNS[String(Math.min(RG_State.DroolStage + 1, maxStage))] || RG_COOLDOWNS[String(maxStage)]);
+			var cd = RG_State.Cycling
+				? RG_COOLDOWNS.cycle
+				: RG_COOLDOWNS[
+						String(Math.min(RG_State.DroolStage + 1, maxStage))
+				  ] || RG_COOLDOWNS[String(maxStage)];
 			RG_State.DroolCooldown = RG_RandInt(cd[0], cd[1]);
 		}
 	}
@@ -313,7 +396,8 @@ function RG_TickHandler(_e, _item, data) {
 function RG_CleanupHandler(_e, item, data) {
 	if (data && data.item !== item) return;
 	var ringName = item && item.name;
-	var stillEquipped = false, stillOpenGagged = false;
+	var stillEquipped = false,
+		stillOpenGagged = false;
 	for (var rest of KinkyDungeonAllRestraintDynamic()) {
 		if (rest.item && rest.item.name === ringName) stillEquipped = true;
 		var r = KDRestraint(rest.item);
@@ -335,35 +419,168 @@ function RG_RegisterEvents() {
 }
 
 var RG_RESTRAINT_TEXT = [
-	{ name: "RingGag", display: "Ring Gag", flavor: "A firm metal ring wedged behind your teeth forces your mouth wide open.", func: "A standard ring gag. Barely muffles speech since the mouth is held open." },
-	{ name: "HarnessRingGag", display: "Harness Ring Gag", flavor: "A metal ring held in place by a web of leather straps buckled tightly around your head.", func: "The harness is comprehensive and it's locked in place." },
-	{ name: "LargeRingGag", display: "Large Ring Gag", flavor: "A wider metal ring forced into your mouth. The stretch is significant.", func: "A larger ring gag. Your jaw is held wider than is comfortable." },
-	{ name: "HugeRingGag", display: "Huge Ring Gag", flavor: "An enormous metal ring stretches your jaw painfully wide.", func: "The largest ring gag variant. Your jaw aches from how wide it forces you open." },
-	{ name: "LatexRingGag", display: "Latex Ring Gag", flavor: "A soft rubber O-ring forced into your mouth. It stretches but doesn't yield.", func: "A flexible latex ring gag. The rubber holds your jaw open without the bite of metal." },
-	{ name: "DragonscaleRingGag", display: "Dragonscale Ring Gag", flavor: "A metal ring secured with dragonscale straps that resist any blade.", func: "It's made from hard-to-cut dragonscale!!!" },
-	{ name: "HighsecSpiderGag", display: "High-Security Spider Gag", flavor: "A radial metal frame locked into your mouth, fanned out by a reinforced harness.", func: "The cable-reinforced straps and metal spider frame make this near-impossible to remove." },
-	{ name: "MagicSpiderGag", display: "Magic Spider Gag", flavor: "An enchanted ring formed into a spider-like frame.", func: "It's brimming with conjured energy. A normal knife won't work here!" },
-	{ name: "GoodGirlGag", display: "Good Girl Gag", flavor: "A nurse-issue ring gag built into a soft leather muzzle. The plug pulls out for dosing.", func: "Open wide — good girl. Now let's plug that back up, shall we?" },
-	{ name: "CriersRing", display: "Crier's Ring", flavor: "A cruel ring gag that forces your mouth open and invites misfortune.", func: "Something about this ring feels cursed…" },
-	{ name: "TongueTrap", display: "Tongue Trap", flavor: "A firm metal ring with a rubber-coated saddle that clamps down over your tongue.", func: "Drinking potions becomes a gamble — your numbed tongue can't tell a healing brew from poison." },
-	{ name: "IncantorsMouthpiece", display: "Incantor's Mouthpiece", flavor: "An ancient metal ring etched with spellwork that glows faintly gold when enemies draw near.", func: "Up close, the word is the weapon." },
+	{
+		name: "RingGag",
+		display: "Ring Gag",
+		flavor: "A firm metal ring wedged behind your teeth forces your mouth wide open.",
+		func: "A standard ring gag. Barely muffles speech since the mouth is held open.",
+	},
+	{
+		name: "HarnessRingGag",
+		display: "Harness Ring Gag",
+		flavor: "A metal ring held in place by a web of leather straps buckled tightly around your head.",
+		func: "The harness is comprehensive and it's locked in place.",
+	},
+	{
+		name: "LargeRingGag",
+		display: "Large Ring Gag",
+		flavor: "A wider metal ring forced into your mouth. The stretch is significant.",
+		func: "A larger ring gag. Your jaw is held wider than is comfortable.",
+	},
+	{
+		name: "HugeRingGag",
+		display: "Huge Ring Gag",
+		flavor: "An enormous metal ring stretches your jaw painfully wide.",
+		func: "The largest ring gag variant. Your jaw aches from how wide it forces you open.",
+	},
+	{
+		name: "LatexRingGag",
+		display: "Latex Ring Gag",
+		flavor: "A soft rubber O-ring forced into your mouth. It stretches but doesn't yield.",
+		func: "A flexible latex ring gag. The rubber holds your jaw open without the bite of metal.",
+	},
+	{
+		name: "DragonscaleRingGag",
+		display: "Dragonscale Ring Gag",
+		flavor: "A metal ring secured with dragonscale straps that resist any blade.",
+		func: "It's made from hard-to-cut dragonscale!!!",
+	},
+	{
+		name: "HighsecSpiderGag",
+		display: "High-Security Spider Gag",
+		flavor: "A radial metal frame locked into your mouth, fanned out by a reinforced harness.",
+		func: "The cable-reinforced straps and metal spider frame make this near-impossible to remove.",
+	},
+	{
+		name: "MagicSpiderGag",
+		display: "Magic Spider Gag",
+		flavor: "An enchanted ring formed into a spider-like frame.",
+		func: "It's brimming with conjured energy. A normal knife won't work here!",
+	},
+	{
+		name: "GoodGirlGag",
+		display: "Good Girl Gag",
+		flavor: "A nurse-issue ring gag built into a soft leather muzzle. The plug pulls out for dosing.",
+		func: "Open wide — good girl. Now let's plug that back up, shall we?",
+	},
+	{
+		name: "CriersRing",
+		display: "Crier's Ring",
+		flavor: "A cruel ring gag that forces your mouth open and invites misfortune.",
+		func: "Something about this ring feels cursed…",
+	},
+	{
+		name: "TongueTrap",
+		display: "Tongue Trap",
+		flavor: "A firm metal ring with a rubber-coated saddle that clamps down over your tongue.",
+		func: "Drinking potions becomes a gamble — your numbed tongue can't tell a healing brew from poison.",
+	},
+	{
+		name: "IncantorsMouthpiece",
+		display: "Incantor's Mouthpiece",
+		flavor: "An ancient metal ring etched with spellwork that glows faintly gold when enemies draw near.",
+		func: "Up close, the word is the weapon.",
+	},
 ];
 
 function RG_CoreRestraints() {
 	var link = RG_BallGagLink.slice();
 	return [
-		{ inventory: true, name: "RingGag", Asset: "RingGags", preview: "RingGags", Model: "RingGag", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], debris: "Belts", sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], gag: 0.1, power: 4, weight: 3, strictness: 0.1, maxwill: 0.6, escapeChance: { Struggle: 0.15, Cut: 0.2, Remove: 0.8, Pick: 0.2 }, limitChance: { Struggle: 0.15 }, enemyTags: { leatherRestraints: 10, ballGagRestraints: 4 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, trappable: true, name: "HarnessRingGag", debris: "Belts", Asset: "RingGags", preview: "RingGags", Model: "RingGagHarness", sfxGroup: "Leather", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], gag: 0.1, power: 5, weight: 2, strictness: 0.15, maxwill: 0.7, escapeChance: { Struggle: 0.05, Cut: 0.15, Remove: 0.5, Pick: 0.2 }, limitChance: { Struggle: 0.15 }, enemyTags: { leatherRestraints: 8, ballGagRestraints: 5 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "LargeRingGag", Asset: "RingGags", preview: "RingGags", Model: "LargeRingGag", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], debris: "Belts", sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], gag: 0.1, power: 4, weight: 2, maxwill: 0.9, escapeChance: { Struggle: 0.0, Cut: 0.45, Remove: 0.65, Pick: 0.3 }, limitChance: { Struggle: 0.15 }, enemyTags: { ballGagRestraints: 4 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "HugeRingGag", Asset: "RingGags", preview: "RingGags", Model: "LargeRingGag", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], debris: "Belts", sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], DefaultLock: "Red_Hi", gag: 0.1, power: 5, weight: 2, maxwill: 0.9, escapeChance: { Struggle: 0.0, Cut: 0.45, Remove: 0.65, Pick: 0.3 }, limitChance: { Struggle: 0.15 }, enemyTags: { ballGagRestraints: 3 }, playerTags: {}, minLevel: 2, allFloors: true, shrine: ["Leather", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "LatexRingGag", Asset: "RingGags", preview: "RingGags", Model: "LatexRingGag", Group: "ItemMouth", Type: "Tight", Color: ["Default", "#4EA1FF"], sfxGroup: "Rubber", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], gag: 0.1, power: 7, weight: 0, escapeChance: { Struggle: -0.05, Cut: 0.04, Remove: 0.4, Pick: 0.25 }, limitChance: { Struggle: 0.15 }, enemyTags: { latexRestraints: 5, latexGag: 8 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Latex", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "DragonscaleRingGag", debris: "Belts", Asset: "RingGags", preview: "RingGags", Model: "RingGagHarnessSecure", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], gag: 0.1, power: 6, weight: 1, maxwill: 0.75, escapeChance: { Struggle: -0.1, Cut: -0.5, Remove: 0.35, Pick: 0.2 }, limitChance: { Struggle: 0.15 }, enemyTags: { dragonRestraints: 6, ballGagRestraints: 2 }, playerTags: {}, minLevel: 3, allFloors: true, shrine: ["Leather", "Gags", "OpenGag", "Dragon"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "HighsecSpiderGag", debris: "Belts", Asset: "RingGags", preview: "RingGags", Model: "SpiderGagHarnessSecure", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], quickBindCondition: "BallGag", quickBindMult: 0.5, gag: 0.1, power: 8, weight: 1, maxwill: 0.85, escapeChance: { Struggle: -0.2, Cut: 0.05, Remove: 0.2, Pick: 0.1 }, limitChance: { Struggle: 0.2 }, enemyTags: { highsec: 8, ballGagRestraints: 2 }, playerTags: {}, minLevel: 5, allFloors: true, shrine: ["Leather", "Gags", "OpenGag", "Metal"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "MagicSpiderGag", Asset: "RingGags", preview: "RingGags", debris: "Belts", Model: "SpiderGag", sfxGroup: "Leather", Group: "ItemMouth", Type: "Tight", Color: ["Default", "#ff00ff"], LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], quickBindCondition: "BallGag", quickBindMult: 0.5, DefaultLock: "Purple", magic: true, gag: 0.1, power: 5.5, weight: 2, escapeChance: { Struggle: -0.1, Cut: 0.12, Remove: 0.45, Pick: 0.25 }, limitChance: { Struggle: 0.15 }, enemyTags: { ballGagRestraintsMagic: 4, gagSpellStrong: 10, forceAntiMagic: -100 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "Conjure", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "GoodGirlGag", Asset: "RingGags", preview: "RingGags", Model: "GoodGirlGagModel", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], debris: "Belts", sfxGroup: "Leather", LinkableBy: ["FlatGags", "MuzzleGags", "Tape", "Wrapping", "Encase"], renderWhenLinked: ["FlatGags", "MuzzleGags", "Tape", "Wrapping", "Encase"], factionColor: [[], [0]], DefaultLock: "Red", gag: 0.4, power: 8, weight: 2, maxwill: 0.9, limitChance: { Struggle: 0.1, Cut: 0, Unlock: 0.75 }, escapeChance: { Struggle: -0.175, Cut: 0.15, Remove: 0.15, Pick: 0.15 }, enemyTags: { nurseRestraints: 12, dressRestraints: 3, forceAntiMagic: -100 }, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "PlugGags"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "CriersRing", Asset: "RingGags", preview: "RingGags", Model: "RingGag", Group: "ItemMouth", Type: "Tight", Color: ["#5a1a1a", "#5a1a1a"], debris: "Belts", sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, gag: 0.1, power: 10, weight: 0, strictness: 0.15, maxwill: 0.45, escapeChance: { Struggle: -0.1, Cut: 0.1, Remove: 0.25, Pick: 0.15 }, limitChance: { Struggle: 0.15 }, enemyTags: {}, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Leather", "Gags", "OpenGag", "Cursed"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "TongueTrap", Asset: "RingGags", preview: "RingGags", Model: "TongueTrapModel", Group: "ItemMouth", Type: "Tight", Color: ["Default", "Default"], sfxGroup: "Rubber", LinkableBy: link, renderWhenLinked: link, gag: 0.1, power: 10, weight: 1, strictness: 0.15, maxwill: 0.5, escapeChance: { Struggle: -0.1, Cut: 0.1, Remove: 0.3, Pick: 0.2 }, limitChance: { Struggle: 0.15 }, DefaultLock: "Blue", enemyTags: { trapRestraints: 6, latexRestraints: 2 }, playerTags: {}, minLevel: 2, allFloors: true, shrine: ["Latex", "Gags", "OpenGag"], events: RingGagEvents.slice() },
-		{ inventory: true, name: "IncantorsMouthpiece", Asset: "RingGags", preview: "RingGags", Model: "IncantorsMouthpieceModel", Group: "ItemMouth", Type: "Tight", Color: ["#e8c96a", "#b08a2a"], sfxGroup: "Leather", LinkableBy: link, renderWhenLinked: link, factionColor: [[], [0]], DefaultLock: "Divine2", gag: 0.1, power: 30, weight: 0, strictness: 0.3, maxwill: 0.9, escapeChance: { Struggle: -99, Cut: -99, Remove: 1, Pick: -100 }, limitChance: { Struggle: 0.5 }, enemyTags: {}, playerTags: {}, minLevel: 0, allFloors: true, shrine: ["Metal", "Gags", "OpenGag", "Divine"], events: RingGagEvents.slice() },
+		{
+			inventory: true,
+			name: "RingGag",
+			Asset: "RingGags",
+			preview: "RingGags",
+			Model: "RingGag",
+			Group: "ItemMouth",
+			Type: "Tight",
+			Color: ["Default", "Default"],
+			debris: "Belts",
+			sfxGroup: "Leather",
+			LinkableBy: link,
+			renderWhenLinked: link,
+			factionColor: [[], [0]],
+			gag: 0.1,
+			power: 4,
+			weight: 3,
+			strictness: 0.1,
+			maxwill: 0.6,
+			escapeChance: { Struggle: 0.15, Cut: 0.2, Remove: 0.8, Pick: 0.2 },
+			limitChance: { Struggle: 0.15 },
+			enemyTags: { leatherRestraints: 10, ballGagRestraints: 4 },
+			playerTags: {},
+			minLevel: 0,
+			allFloors: true,
+			shrine: ["Leather", "Gags", "OpenGag"],
+			events: RingGagEvents.slice(),
+		},
+		{
+			inventory: true,
+			trappable: true,
+			name: "HarnessRingGag",
+			debris: "Belts",
+			Asset: "RingGags",
+			preview: "RingGags",
+			Model: "RingGagHarness",
+			sfxGroup: "Leather",
+			Group: "ItemMouth",
+			Type: "Tight",
+			Color: ["Default", "Default"],
+			LinkableBy: link,
+			renderWhenLinked: link,
+			factionColor: [[], [0]],
+			gag: 0.1,
+			power: 5,
+			weight: 2,
+			strictness: 0.15,
+			maxwill: 0.7,
+			escapeChance: { Struggle: 0.05, Cut: 0.15, Remove: 0.5, Pick: 0.2 },
+			limitChance: { Struggle: 0.15 },
+			enemyTags: { leatherRestraints: 8, ballGagRestraints: 5 },
+			playerTags: {},
+			minLevel: 0,
+			allFloors: true,
+			shrine: ["Leather", "Gags", "OpenGag"],
+			events: RingGagEvents.slice(),
+		},
+		{
+			inventory: true,
+			name: "GoodGirlGag",
+			Asset: "RingGags",
+			preview: "RingGags",
+			Model: "GoodGirlGagModel",
+			Group: "ItemMouth",
+			Type: "Tight",
+			Color: ["Default", "Default"],
+			debris: "Belts",
+			sfxGroup: "Leather",
+			LinkableBy: ["FlatGags", "MuzzleGags", "Tape", "Wrapping", "Encase"],
+			renderWhenLinked: ["FlatGags", "MuzzleGags", "Tape", "Wrapping", "Encase"],
+			factionColor: [[], [0]],
+			DefaultLock: "Red",
+			gag: 0.4,
+			power: 8,
+			weight: 2,
+			maxwill: 0.9,
+			limitChance: { Struggle: 0.1, Cut: 0, Unlock: 0.75 },
+			escapeChance: { Struggle: -0.175, Cut: 0.15, Remove: 0.15, Pick: 0.15 },
+			enemyTags: { nurseRestraints: 12, dressRestraints: 3, forceAntiMagic: -100 },
+			playerTags: {},
+			minLevel: 0,
+			allFloors: true,
+			shrine: ["Leather", "Gags", "PlugGags"],
+			events: RingGagEvents.slice(),
+		},
 	];
 }
 
@@ -371,21 +588,43 @@ function RG_CosmeticRestraints() {
 	var list = [];
 	for (var i = 1; i <= 4; i++) {
 		list.push({
-			inventory: false, name: "RingGagDroolS" + i + "FX", Asset: "RingGags", preview: "RingGags",
-			Model: "RingGagDroolS" + i, Group: "RingGagDroolFX",
-			power: -10, weight: 0, maxwill: 0, noDupe: true,
+			inventory: false,
+			name: "RingGagDroolS" + i + "FX",
+			Asset: "RingGags",
+			preview: "RingGags",
+			Model: "RingGagDroolS" + i,
+			Group: "RingGagDroolFX",
+			power: -10,
+			weight: 0,
+			maxwill: 0,
+			noDupe: true,
 			escapeChance: { Struggle: -100, Cut: -100, Remove: -100, Pick: -100 },
 			limitChance: { Struggle: 1, Cut: 1, Remove: 1, Pick: 1 },
-			enemyTags: {}, playerTags: {}, minLevel: 0, allFloors: true, shrine: [],
+			enemyTags: {},
+			playerTags: {},
+			minLevel: 0,
+			allFloors: true,
+			shrine: [],
 		});
 	}
 	list.push({
-		inventory: false, name: "RingGagBreathFX", Asset: "RingGags", preview: "RingGags",
-		Model: "RingGagBreathOverlay", Group: "RingGagBreathFX",
-		power: -10, weight: 0, maxwill: 0, noDupe: true,
+		inventory: false,
+		name: "RingGagBreathFX",
+		Asset: "RingGags",
+		preview: "RingGags",
+		Model: "RingGagBreathOverlay",
+		Group: "RingGagBreathFX",
+		power: -10,
+		weight: 0,
+		maxwill: 0,
+		noDupe: true,
 		escapeChance: { Struggle: -100, Cut: -100, Remove: -100, Pick: -100 },
 		limitChance: { Struggle: 1, Cut: 1, Remove: 1, Pick: 1 },
-		enemyTags: {}, playerTags: {}, minLevel: 0, allFloors: true, shrine: [],
+		enemyTags: {},
+		playerTags: {},
+		minLevel: 0,
+		allFloors: true,
+		shrine: [],
 	});
 	return list;
 }
@@ -393,7 +632,8 @@ function RG_CosmeticRestraints() {
 var RG_Registered = false;
 function RG_Register() {
 	if (RG_Registered) return true;
-	if (typeof KinkyDungeonRestraints === "undefined" || !Array.isArray(KinkyDungeonRestraints)) return false;
+	if (typeof KinkyDungeonRestraints === "undefined" || !Array.isArray(KinkyDungeonRestraints))
+		return false;
 	RG_Registered = true;
 	var restraints = RG_CoreRestraints().concat(RG_CosmeticRestraints());
 	var added = 0;
@@ -401,9 +641,15 @@ function RG_Register() {
 		var r = restraints[ri];
 		var exists = false;
 		for (var j = 0; j < KinkyDungeonRestraints.length; j++) {
-			if (KinkyDungeonRestraints[j].name === r.name) { exists = true; break; }
+			if (KinkyDungeonRestraints[j].name === r.name) {
+				exists = true;
+				break;
+			}
 		}
-		if (!exists) { KinkyDungeonRestraints.push(r); added++; }
+		if (!exists) {
+			KinkyDungeonRestraints.push(r);
+			added++;
+		}
 	}
 	if (typeof KinkyDungeonAddRestraintText === "function") {
 		for (var ti = 0; ti < RG_RESTRAINT_TEXT.length; ti++) {
@@ -411,7 +657,8 @@ function RG_Register() {
 			KinkyDungeonAddRestraintText(t.name, t.display, t.flavor, t.func);
 		}
 	}
-	if (typeof KinkyDungeonRefreshRestraintsCache === "function") KinkyDungeonRefreshRestraintsCache();
+	if (typeof KinkyDungeonRefreshRestraintsCache === "function")
+		KinkyDungeonRefreshRestraintsCache();
 	RG_RegisterEvents();
 	if (typeof console !== "undefined" && console.log)
 		console.log("[RingGags] Registered " + added + " restraints");
