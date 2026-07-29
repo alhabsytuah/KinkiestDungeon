@@ -1,14 +1,14 @@
 /**
  * RingGags Phase 4 — Plug / Unplug swap system
- * Loaded after RingGags.ts (global outFile). Uses RG_PlayUnplug, RG_RandInt,
- * RG_BallGagLink, RingGagEvents, RG_HasOnlyOpenGags from RingGags.ts.
+ * Loaded after RingGags.ts (global outFile).
+ * Struggle UI PlugSwap lives in KDStruggleGroups.ts; this file owns swap logic,
+ * open variants, inventory action, input type, and open-gag debuff.
  */
 "use strict";
 
 // =========================================================================
 // Phase 4: Plug / Unplug (swap pairs)
 // =========================================================================
-// Plugged (base) <-> Open sibling. Unplug plays unplug.ogg; plug is silent.
 
 var RG_SWAP_PAIRS: any = {
 	CyberPlugGag: "CyberPlugGagOpen",
@@ -53,10 +53,7 @@ var RG_MSG_PLAYER_UNPLUG = [
 
 var RG_DEBUFF_TEXT = "Your mouth is stretched open! Noise and drool escape with nothing to stop them...";
 
-// Module flags (do not hang booleans on typed game objects)
 var RG_InventoryActionsWrapped = false;
-var RG_StruggleButtonsWrapped = false;
-var RG_StruggleContextWrapped = false;
 var RG_DebuffWrapped = false;
 var RG_PlugSwapRegistered = false;
 
@@ -304,112 +301,17 @@ function RG_RegisterPlugSwap() {
 		RG_InventoryActionsWrapped = true;
 	}
 
-	if (typeof KDStruggleButtons !== "undefined" && !KDStruggleButtons.PlugSwap) {
-		KDStruggleButtons.PlugSwap = function (data, i, query, _target, _entity) {
-			var x = data.x, y = data.y, ButtonWidth = data.ButtonWidth,
-				sg = data.sg, button_index = data.button_index, item = data.item;
-			var isSwap = !!(item && RG_IsSwapPair(item));
-			var curse = item && (typeof KDGetCurse === "function") ? KDGetCurse(item) : (item && item.curse);
-			var handsFree = !(typeof KinkyDungeonIsArmsBound === "function" && KinkyDungeonIsArmsBound())
-				&& !(typeof KinkyDungeonIsHandsBound === "function" && KinkyDungeonIsHandsBound());
-			var allowed = !!(isSwap && !curse && sg && !sg.blocked && handsFree);
-
-			var action = function (_b) {
-				if (!isSwap) return false;
-				if (!handsFree) {
-					if (typeof KinkyDungeonSendTextMessage === "function")
-						KinkyDungeonSendTextMessage(6, "Your hands aren't free enough to manage the plug.", "#cc6680", 2);
-					return true;
-				}
-				var itemIndex = (typeof KDStruggleGroupLinkIndex !== "undefined" && KDStruggleGroupLinkIndex && sg && KDStruggleGroupLinkIndex[sg.group])
-					? KDStruggleGroupLinkIndex[sg.group] : 0;
-				if (typeof KDSendInput === "function" && sg)
-					KDSendInput("plugSwap", { group: sg.group, index: itemIndex });
-				else
-					RG_DoPlayerPlugSwap(item);
-				return true;
-			};
-
-			if (query) {
-				return {
-					i: 7,
-					allowed: allowed,
-					image: item && RG_IsPluggedVariant(item.name) ? "InventoryAction/Unplug" : "InventoryAction/Plug",
-					type: "PlugSwap",
-					action: action,
-				};
-			}
-
-			// Always advance slot index so layout stays consistent; only draw when swap pair
-			if (isSwap && !curse && typeof DrawButtonKDEx === "function") {
-				var iconName = RG_IsPluggedVariant(item.name) ? "Unplug" : "Plug";
-				var root = (typeof KinkyDungeonRootDirectory !== "undefined") ? KinkyDungeonRootDirectory : "";
-				var iconPath = root + "InventoryAction/" + iconName + ".png";
-				var btnColor = allowed
-					? ((typeof KDButtonColorIntense !== "undefined") ? KDButtonColorIntense : "#444444")
-					: "rgba(255, 50, 50, 0.5)";
-				var left = sg && sg.left;
-				var bx = x + 495 - ButtonWidth + (left ? -(ButtonWidth) * i : (ButtonWidth) * i);
-				if (DrawButtonKDEx(
-					"sgPlugSwap" + button_index + (sg ? sg.group : ""),
-					function (_b) { return action(_b); },
-					true,
-					bx, y, ButtonWidth, ButtonWidth, "",
-					allowed ? ((typeof KDBaseWhite !== "undefined") ? KDBaseWhite : "#ffffff") : "#ff4444",
-					iconPath, "",
-					undefined, true, btnColor, undefined, undefined, { scaleImage: true }
-				)) {
-					if (data) data.StruggleType = RG_IsPluggedVariant(item.name) ? "PlugSwapUnplug" : "PlugSwapPlug";
-				}
-				i++;
-			}
-			return {
-				i: i,
-				allowed: allowed,
-				type: "PlugSwap",
-				image: item && RG_IsPluggedVariant(item.name) ? "InventoryAction/Unplug" : "InventoryAction/Plug",
-			};
-		};
-	}
-
-	// outFile shares one scope: must reassign the local function binding (not only globalThis).
-	// @ts-expect-error TS2630 intentional monkey-patch of struggle button list
-	if (typeof KDGetStruggleButtons === "function" && !RG_StruggleButtonsWrapped) {
-		var RG_OrigGetStruggleButtons = KDGetStruggleButtons;
-		// @ts-expect-error TS2630
-		KDGetStruggleButtons = function (data) {
-			var ret = RG_OrigGetStruggleButtons(data);
-			if (!ret || !ret.length) return ret;
-			if (ret.indexOf("ContextMenu") >= 0) return ret;
-			if (ret.indexOf("PlugSwap") < 0) return ret.concat(["PlugSwap"]);
-			return ret;
-		};
-		RG_StruggleButtonsWrapped = true;
-	}
-
-	// @ts-expect-error TS2630 intentional monkey-patch
-	if (typeof KDGetStruggleContextMenu === "function" && !RG_StruggleContextWrapped) {
-		var RG_OrigGetStruggleContextMenu = KDGetStruggleContextMenu;
-		// @ts-expect-error TS2630
-		KDGetStruggleContextMenu = function (item, sg, target, entity) {
-			var ret = RG_OrigGetStruggleContextMenu(item, sg, target, entity);
-			if (!ret) return ["PlugSwap"];
-			if (ret.indexOf("PlugSwap") < 0) return ret.concat(["PlugSwap"]);
-			return ret;
-		};
-		RG_StruggleContextWrapped = true;
-	}
-
 	if (typeof console !== "undefined" && console.log)
-		console.log("[RingGags] PlugSwap inventory + struggle UI registered");
+		console.log("[RingGags] PlugSwap logic + inventory action registered (struggle UI in KDStruggleGroups)");
 }
 
 /** Open-gag status icon on Buffs & Stats (Game/Buffs/opengag_debuff.png). */
 function RG_RegisterOpenGagDebuff() {
 	if (typeof KDDrawBuffIcons !== "function" || RG_DebuffWrapped) return;
 	var RG_OrigDrawBuffIcons = KDDrawBuffIcons;
-	// @ts-expect-error TS2630 intentional monkey-patch
-	KDDrawBuffIcons = function (minXX, minYY, statsDraw, side) {
+	var g: any = (typeof globalThis !== "undefined") ? globalThis : (typeof window !== "undefined" ? window : {});
+	// Assign via global object to avoid TS2630 on function binding
+	g.KDDrawBuffIcons = function (minXX, minYY, statsDraw, side) {
 		try {
 			if (statsDraw && typeof RG_HasOnlyOpenGags === "function" && RG_HasOnlyOpenGags()) {
 				statsDraw.rg_opengag = {
