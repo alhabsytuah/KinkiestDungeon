@@ -3,7 +3,7 @@
  *
  * - Always-available non-droppable "None" / Naked outfit
  * - Bikini-style exposure resists + sneak/mana tradeoffs
- * - Optional BodyPlus torso/nipple atlas override
+ * - BodyPlus torso/nipple atlas override (TextureAtlas/BodyPlus-0.*)
  * - Visible bottom toys (PussyToy / VibeToy models)
  *
  * Loaded after KinkyDungeonDressList via tsconfig files[].
@@ -23,6 +23,8 @@ var NO_CFG = {
 var NO_RestraintPlugsF = ["TrapPlug", "TrapPlug2", "TrapPlug3", "TrapPlug4", "TrapPlug5", "SteelPlugF"];
 var NO_RestraintPlugsR = ["RearVibe1", "SteelPlugR"];
 var NO_RestraintVibes = ["TrapVibe", "TrapVibeProto", "MaidVibe"];
+
+var NO_BodyPlusApplied = false;
 
 function NO_NakedEvents(): any[] {
 	var events: any[] = [
@@ -69,10 +71,13 @@ function NO_RegisterOutfit() {
 		}
 	} catch (_e) {}
 
+	// Alias inventory mana handler for outfit events (types differ — use any)
 	try {
 		if (typeof KDEventMapOutfit !== "undefined" && typeof KDEventMapInventory !== "undefined") {
-			if (!KDEventMapOutfit.calcEfficientMana && KDEventMapInventory.calcEfficientMana) {
-				KDEventMapOutfit.calcEfficientMana = KDEventMapInventory.calcEfficientMana;
+			var invMap: any = KDEventMapInventory;
+			var outMap: any = KDEventMapOutfit;
+			if (!outMap.calcEfficientMana && invMap.calcEfficientMana) {
+				outMap.calcEfficientMana = invMap.calcEfficientMana;
 			}
 		}
 	} catch (_e) {}
@@ -272,54 +277,114 @@ function NO_WireToySkin() {
 	} catch (_e) {}
 }
 
-function NO_OverrideTextures(paths: string[]) {
-	for (var i = 0; i < paths.length; i++) {
-		var image = paths[i];
+/** Register spritesheet frame textures into kdpixitex under Models/... paths. */
+function NO_ApplySheetTextures(sheet: any) {
+	if (!sheet) return 0;
+	var count = 0;
+	var texMap: any = sheet.textures || null;
+	if (!texMap && sheet.linkedSheets) {
 		try {
-			if (typeof PIXI === "undefined" || !PIXI.Texture) continue;
-			var tex = PIXI.Texture.from(image);
-			if (tex && typeof kdpixitex !== "undefined" && kdpixitex && kdpixitex.get(image) != tex) {
-				kdpixitex.set(image, tex);
+			var linked: any[] = Object.values(sheet.linkedSheets);
+			for (var li = 0; li < linked.length; li++) {
+				if (linked[li] && linked[li].textures) {
+					texMap = linked[li].textures;
+					break;
+				}
 			}
 		} catch (_e) {}
 	}
-}
+	if (!texMap) return 0;
 
-function NO_OnAtlasLoad(progress: number) {
-	if (progress < 1) return;
-	try {
-		if (NO_CFG.ReplaceBody) {
-			NO_OverrideTextures([
-				"Models/Body/Torso.png",
-				"Models/Body/TorsoSpread.png",
-				"Models/Body/TorsoClosed.png",
-			]);
+	var keys = Object.keys(texMap);
+	for (var ki = 0; ki < keys.length; ki++) {
+		var key = keys[ki];
+		var tex = texMap[key];
+		if (!tex) continue;
+
+		// Only override paths we care about
+		var isBody =
+			key.indexOf("Models/Body/Torso") === 0 ||
+			key === "Models/Body/Nipples.png";
+		var isToy = key.indexOf("Models/Toys/") === 0;
+
+		if (isBody) {
+			if (key === "Models/Body/Nipples.png" && !NO_CFG.ReplaceNipples) continue;
+			if (key !== "Models/Body/Nipples.png" && !NO_CFG.ReplaceBody) continue;
+		} else if (!isToy) {
+			continue;
+		} else if (!NO_CFG.EnableToys) {
+			continue;
 		}
-		if (NO_CFG.ReplaceNipples) {
-			NO_OverrideTextures(["Models/Body/Nipples.png"]);
-		}
-	} catch (_e) {
-		console.log("[NakedOutfit] OnAtlasLoad failed", _e);
+
+		try {
+			if (typeof kdpixitex !== "undefined" && kdpixitex) {
+				kdpixitex.set(key, tex);
+				count++;
+			}
+		} catch (_e) {}
 	}
+	return count;
 }
 
+function NO_RefreshPlayerDraw() {
+	try {
+		if (typeof KinkyDungeonPlayer !== "undefined" && KinkyDungeonPlayer) {
+			if (typeof KDRefreshCharacter === "function") {
+				KDRefreshCharacter(KinkyDungeonPlayer, true);
+			}
+			if (typeof DressPlayer === "function") {
+				DressPlayer();
+			}
+		}
+	} catch (_e) {}
+}
+
+function NO_OnBodyPlusReady(sheet: any) {
+	var n = NO_ApplySheetTextures(sheet);
+	NO_BodyPlusApplied = n > 0;
+	console.log("[NakedOutfit] BodyPlus textures applied: " + n);
+	NO_RefreshPlayerDraw();
+}
+
+/**
+ * Load BodyPlus atlas as a normal PIXI spritesheet (vanilla path).
+ * modAtlasLoader is mod-only (KDModFiles); disk TextureAtlas works with default parser.
+ */
 function NO_LoadBodyPlusAtlas() {
-	if (!NO_CFG.ReplaceBody && !NO_CFG.ReplaceNipples) return;
+	if (!NO_CFG.ReplaceBody && !NO_CFG.ReplaceNipples && !NO_CFG.EnableToys) return;
+
+	var url = "TextureAtlas/BodyPlus-0.json";
 	try {
 		if (typeof PIXI === "undefined" || !PIXI.Assets || !PIXI.Assets.load) {
-			NO_OnAtlasLoad(1);
+			console.log("[NakedOutfit] PIXI.Assets unavailable — BodyPlus skipped");
 			return;
 		}
-		PIXI.Assets.load(
-			{
-				src: "TextureAtlas/BodyPlus-0.json",
-				loadParser: "modAtlasLoader",
-			} as any,
-			NO_OnAtlasLoad
-		);
+
+		// Standard spritesheet load (meta.image → TextureAtlas/BodyPlus-0.png)
+		var p = PIXI.Assets.load(url);
+		if (p && typeof p.then === "function") {
+			p.then(
+				function (sheet: any) {
+					NO_OnBodyPlusReady(sheet);
+				},
+				function (err: any) {
+					console.log("[NakedOutfit] BodyPlus atlas load failed", err);
+					// Retry once after main atlases may have finished
+					setTimeout(function () {
+						if (NO_BodyPlusApplied) return;
+						PIXI.Assets.load(url)
+							.then(function (sheet2: any) {
+								NO_OnBodyPlusReady(sheet2);
+							})
+							.catch(function (e2: any) {
+								console.log("[NakedOutfit] BodyPlus retry failed — is BodyPlus-0.png present?", e2);
+							});
+					}, 800);
+				}
+			);
+		}
 	} catch (_e) {
-		console.log("[NakedOutfit] atlas load failed, trying direct override", _e);
-		NO_OnAtlasLoad(1);
+		console.log("[NakedOutfit] atlas load exception", _e);
 	}
 }
 
