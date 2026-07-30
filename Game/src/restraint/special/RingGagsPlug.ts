@@ -2,6 +2,7 @@
  * RingGags Phase 4 — Plug / Unplug (UI-safe)
  * Mutate item.name + events; re-key inventory Map; struggle-panel + inventory actions.
  * Matches original RingGags mod behavior for player plug/unplug.
+ * Open variants are NOT listed in restraint search / cheat inventory.
  */
 "use strict";
 
@@ -213,6 +214,11 @@ function RG_PerformSwap(item) {
 	return true;
 }
 
+/**
+ * Register open sibling restraint. Hidden from restraint browser / loot:
+ * inventory:false, weight:0, empty enemyTags. Still valid as worn swap target.
+ * inventoryAs / inventoryAsSelf = base so removal drops the closed gag.
+ */
 function RG_AddOpenVariant(baseName, modelOverride) {
 	var base = typeof KinkyDungeonGetRestraintByName === "function"
 		? KinkyDungeonGetRestraintByName(baseName) : null;
@@ -226,10 +232,14 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		var copy: any;
 		try { copy = JSON.parse(JSON.stringify(base)); } catch (_e) { return false; }
 		copy.name = openName;
-		copy.inventory = true;
+		// Hide from restraint search / cheat inventory / shops / loot rolls
+		copy.inventory = false;
 		copy.weight = 0;
-		delete copy.inventoryAs;
-		delete copy.inventoryAsSelf;
+		copy.enemyTags = {};
+		copy.minLevel = 99;
+		// When removed, drop as the closed (plugged) base — not as a free Open item
+		copy.inventoryAs = baseName;
+		copy.inventoryAsSelf = baseName;
 		copy.Model = modelOverride || "PanelGagOpenModel";
 		copy.gag = 0.1;
 		try { copy.gagFamily = baseName; } catch (_gf) {}
@@ -247,8 +257,12 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		var ex: any = existing;
 		if (modelOverride) ex.Model = modelOverride;
 		ex.gag = 0.1;
-		delete ex.inventoryAs;
-		delete ex.inventoryAsSelf;
+		ex.inventory = false;
+		ex.weight = 0;
+		ex.enemyTags = {};
+		ex.minLevel = 99;
+		ex.inventoryAs = baseName;
+		ex.inventoryAsSelf = baseName;
 		if (!ex.shrine) ex.shrine = [];
 		if (ex.shrine.indexOf("OpenGag") < 0)
 			ex.shrine = ex.shrine.concat(["OpenGag"]);
