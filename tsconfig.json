@@ -1,17 +1,10 @@
 {
     "files": [
         "Game/src/base/KDColors.ts",
-        // Library .d.ts files
         "Scripts/lib/LZString.d.ts",
-
-        // BC and KD .d.ts files
         "Scripts/Typedef.ts",
         "Game/src/base/KDTypeDefs.ts",
         "Data/ModelTypes.ts",
-
-        // Core js (or ts) files.
-        // We have to use a `files` declaration because order is important here
-        // (both due to BC design, and the fact KD monkey-patches parts of BC)
         "Scripts/Patch.ts",
         "Scripts/Common.ts",
         "Scripts/Mouse.ts",
@@ -153,6 +146,7 @@
         "Game/src/restraint/special/RingGagsDialogue.ts",
         "Game/src/restraint/special/RingGagsDialogWire.ts",
         "Game/src/restraint/special/RingGagsOpenParticles.ts",
+        "Game/src/restraint/special/RingGagsExtras.ts",
         "Game/src/collection/KinkyDungeonCollection.ts",
         "Game/src/collection/KDCollectionWander.ts",
         "Game/src/collection/KDCollectionWanderList.ts",
@@ -279,17 +273,15 @@
         "removeComments": true,
         "typeRoots": [
             "./node_modules/@types",
-            "./node_modules/@pixi",
+            "./node_modules/@pixi"
         ],
-
         "moduleResolution": "node",
         "allowSyntheticDefaultImports": true,
         "lib": ["DOM", "ES2020"],
-        //"ignoreDeprecations": "6.0",
         "strictNullChecks": false,
-        "noImplicitAny": false,
+        "noImplicitAny": false
     },
     "watchOptions": {
-        "excludeDirectories": ["**/node_modules", "_build"],
+        "excludeDirectories": ["**/node_modules", "_build"]
     }
 }
