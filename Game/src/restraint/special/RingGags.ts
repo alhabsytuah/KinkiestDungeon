@@ -64,6 +64,7 @@ var RG_State = {
 	PrevX: -1,
 	PrevY: -1,
 	PreferredDroolSFX: 1,
+	DripCooldown: 0,
 	_inited: false,
 };
 
@@ -79,6 +80,34 @@ function RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax) {
 	var huffing = staminaRatio < RG_BREATH_HUFFING;
 	var aroused = distractionMax > 0 && distraction / distractionMax >= RG_BREATH_AROUSED;
 	return tired || huffing || aroused;
+}
+
+// --- Audio (Game/Audio/drip*.ogg, gulp*.ogg, unplug.ogg) ---
+// Original mod used new Audio + KDModFiles; vanilla paths use KinkyDungeonRootDirectory.
+function RG_PlayModSound(relPath, volMult) {
+	try {
+		if (typeof KDSoundEnabled === "function" && !KDSoundEnabled()) return;
+		var root = (typeof KinkyDungeonRootDirectory !== "undefined" && KinkyDungeonRootDirectory)
+			? KinkyDungeonRootDirectory : "";
+		var path = root + relPath;
+		var audio = new Audio(path);
+		var base = (typeof KDSfxVolume !== "undefined") ? KDSfxVolume : 1;
+		audio.volume = Math.min(base * (volMult != null ? volMult : 1), 1);
+		var p = audio.play();
+		if (p && typeof p.catch === "function") p.catch(function () {});
+	} catch (_e) { /* ignore missing / blocked audio */ }
+}
+function RG_PlayDrip() {
+	// Repo has drip1–6, drip8–13 (no drip7)
+	var n = RG_RandInt(1, 13);
+	if (n === 7) n = 8;
+	RG_PlayModSound("Audio/drip" + n + ".ogg", 1.2);
+}
+function RG_PlayGulp() {
+	RG_PlayModSound("Audio/gulp" + RG_RandInt(1, 8) + ".ogg", 1.5);
+}
+function RG_PlayUnplug() {
+	RG_PlayModSound("Audio/unplug.ogg", 1.2);
 }
 
 function RG_InitState() {
@@ -98,6 +127,7 @@ function RG_InitState() {
 	RG_State.PrevX = -1;
 	RG_State.PrevY = -1;
 	RG_State.PreferredDroolSFX = 1;
+	RG_State.DripCooldown = 0;
 }
 function RG_ClearState() {
 	RG_State.DroolStage = 0;
@@ -108,6 +138,7 @@ function RG_ClearState() {
 	RG_State.BoundWipeFailCount = 0;
 	RG_State.CurrentOverlay = 0;
 	RG_State.BreathActive = false;
+	RG_State.DripCooldown = 0;
 	RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
 }
 
@@ -273,6 +304,17 @@ function RG_TickHandler(_e, _item, data) {
 		}
 	}
 
+	// Occasional drip while open + drooling (strand system not fully ported yet)
+	if (RG_State.DroolStage > 0 && !stuffed) {
+		if (RG_State.DripCooldown > 0) RG_State.DripCooldown -= 1;
+		else {
+			RG_PlayDrip();
+			RG_State.DripCooldown = RG_RandInt(8, 18);
+		}
+	} else {
+		RG_State.DripCooldown = 0;
+	}
+
 	if (stuffed) {
 		var dryFloor = hasDroolLock ? 2 : 0;
 		if (RG_State.DroolStage > dryFloor) {
@@ -313,6 +355,8 @@ function RG_TickHandler(_e, _item, data) {
 			RG_State.DroolStage = nextStage;
 			RG_State.DroolEpisode += 1;
 			RG_SetDroolOverlay(nextStage);
+			// Original mod: gulp on false-hope cycle return to S2
+			if (isCycling && nextStage === 2) RG_PlayGulp();
 		}
 	} else {
 		RG_State.DroolDuration -= 1;
