@@ -12,7 +12,8 @@ var RG_OPEN_STRUGGLE = ["Aaagh!", "Hnnaa!", "Aaah!!", "Nnaagh!", "Haaah!"];
 var RG_OPEN_STRUGGLE_QUIET = ["Aah.", "Haa...", "Nnh.", "Ahh."];
 var RG_OPEN_RESTRAINT = ["Aah!", "Nnaah!", "AAH!!", "Haaah!"];
 
-var RG_NOISE_RADII: {[key: string]: number} = {
+// Plain object (avoid index-signature type that can survive partial tsc emits)
+var RG_NOISE_RADII: any = {
 	OPEN_MUMBLE: 4,
 	OPEN_MUMBLE_AROUSED: 8,
 	OPEN_STRUGGLE: 6,
@@ -88,7 +89,7 @@ var RG_MSG_BREATH_AROUSED = [
 	"Arousal turns each exhale into an audible sigh through the gag.",
 ];
 
-function RG_DlgPick(arr: string[]): string {
+function RG_DlgPick(arr: any): string {
 	if (!arr || !arr.length) return "";
 	return arr[Math.floor(Math.random() * arr.length)];
 }
