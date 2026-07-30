@@ -4,6 +4,11 @@
  */
 "use strict";
 
+function RG_G(): any {
+	return typeof globalThis !== "undefined" ? globalThis
+		: (typeof window !== "undefined" ? window : {});
+}
+
 // =========================================================================
 // Public API (other mods / debug)
 // =========================================================================
@@ -22,8 +27,7 @@ var RingGagsAPI: any = {
 	},
 };
 try {
-	if (typeof globalThis !== "undefined") (globalThis as any).RingGagsAPI = RingGagsAPI;
-	else if (typeof window !== "undefined") (window as any).RingGagsAPI = RingGagsAPI;
+	RG_G().RingGagsAPI = RingGagsAPI;
 } catch (_e) {}
 
 // =========================================================================
@@ -79,14 +83,21 @@ function RG_IsCyberShorted(item: any): boolean {
 function RG_IsCyberJammed(item: any): boolean {
 	return !!(item && typeof KDItemDataQuery === "function" && KDItemDataQuery(item, "cyberJammed"));
 }
+/** KDItemDataSet only accepts string | number — encode bools as 1/0. */
+function RG_SetItemFlag(item: any, key: string, on: boolean) {
+	if (typeof KDItemDataSet === "function") KDItemDataSet(item, key, on ? 1 : 0);
+}
 
 // =========================================================================
-// OpenGag shrine costs
+// OpenGag shrine costs (runtime globals may not be in .d.ts)
 // =========================================================================
-if (typeof KDShrineBaseCost !== "undefined" && !KDShrineBaseCost["OpenGag"])
-	KDShrineBaseCost["OpenGag"] = 20;
-if (typeof KDShrineBaseCount !== "undefined" && !KDShrineBaseCount["OpenGag"])
-	KDShrineBaseCount["OpenGag"] = 1;
+(function () {
+	var g = RG_G();
+	if (g.KDShrineBaseCost && g.KDShrineBaseCost["OpenGag"] == null)
+		g.KDShrineBaseCost["OpenGag"] = 20;
+	if (g.KDShrineBaseCount && g.KDShrineBaseCount["OpenGag"] == null)
+		g.KDShrineBaseCount["OpenGag"] = 1;
+})();
 
 // =========================================================================
 // DroolLock custom curse
@@ -138,7 +149,6 @@ if (typeof KDCurseUnlockList !== "undefined" && KDCurseUnlockList.Common) {
 		KDCurseUnlockList.Common.push("DroolLock");
 }
 
-// DroolLock S4 progress messages (hook tick via wrapping)
 (function RG_HookDroolLockS4() {
 	if (typeof KDEventMapInventory === "undefined") return;
 	var orig = KDEventMapInventory["tick"] && KDEventMapInventory["tick"]["ringGagEffects"];
@@ -150,7 +160,6 @@ if (typeof KDCurseUnlockList !== "undefined" && KDCurseUnlockList.Common) {
 			var lockItem = typeof RG_GetDroolLockItem === "function" ? RG_GetDroolLockItem() : null;
 			if (!lockItem || typeof KDItemDataQuery !== "function" || typeof KDItemDataSet !== "function") return;
 			var stage = RG_State ? RG_State.DroolStage : 0;
-			// Count each transition into S4
 			if (stage === 4 && prevStage !== 4) {
 				var s4 = (KDItemDataQuery(lockItem, "droolLockS4Count") || 0) + 1;
 				KDItemDataSet(lockItem, "droolLockS4Count", s4);
@@ -172,7 +181,6 @@ if (typeof KDCurseUnlockList !== "undefined" && KDCurseUnlockList.Common) {
 	(KDEventMapInventory["tick"]["ringGagEffects"] as any)._rgDroolLockHooked = true;
 })();
 
-// DroolLock UI text
 (function () {
 	if (typeof addTextKey !== "function") return;
 	addTextKey("KinkyDungeonCurseInfoDroolLock",
@@ -222,7 +230,6 @@ if (typeof KDEventMapInventory !== "undefined") {
 	};
 }
 
-// Ensure CriersRing restraint has the postApply event
 (function RG_EnsureCriersEvent() {
 	function tryPatch() {
 		if (typeof KinkyDungeonGetRestraintByName !== "function") return false;
@@ -273,7 +280,6 @@ if (typeof KDSpellComponentTypes !== "undefined" && KDSpellComponentTypes.Verbal
 	}
 }
 
-// +60% verbal damage when adjacent (via SendEvent wrap)
 var RG_PendingAutoSwap: any[] = [];
 function RG_QueueAutoSwap(item: any) {
 	if (!item) return;
@@ -297,10 +303,11 @@ function RG_QueueAutoSwap(item: any) {
 	}, 0);
 }
 
-if (typeof KinkyDungeonSendEvent === "function") {
-	var RG_OrigSendEvent = KinkyDungeonSendEvent;
-	KinkyDungeonSendEvent = function (Event: any, data: any, forceSpell?: any, forceWeapon?: any, mapData?: any) {
-		// Incantor damage boost
+(function RG_WrapSendEvent() {
+	var g = RG_G();
+	if (typeof g.KinkyDungeonSendEvent !== "function") return;
+	var RG_OrigSendEvent = g.KinkyDungeonSendEvent;
+	g.KinkyDungeonSendEvent = function (Event: any, data: any, forceSpell?: any, forceWeapon?: any, mapData?: any) {
 		if (Event === "beforeDamageEnemy" && data && data.spell
 				&& data.faction === "Player"
 				&& data.spell.components && data.spell.components.indexOf("Verbal") >= 0
@@ -309,7 +316,6 @@ if (typeof KinkyDungeonSendEvent === "function") {
 		}
 		var result = RG_OrigSendEvent.apply(this, arguments as any);
 
-		// 50% auto-unplug on equip for plugged swap pairs
 		if (Event === "postApply" && data && data.item && data.player && data.player.player) {
 			var appliedName = data.item.name;
 			var willAuto = !data.UnLink
@@ -318,13 +324,12 @@ if (typeof KinkyDungeonSendEvent === "function") {
 			if (willAuto) RG_QueueAutoSwap(data.item);
 		}
 
-		// Cyber lockout jam
 		if (Event === "lockout") {
 			if (typeof KinkyDungeonAllRestraintDynamic === "function") {
 				for (var rest of KinkyDungeonAllRestraintDynamic()) {
 					if (rest.item && typeof RG_IsSwapPair === "function" && RG_IsSwapPair(rest.item)
-							&& RG_IsCyberGag(rest.item) && typeof KDItemDataSet === "function") {
-						KDItemDataSet(rest.item, "cyberJammed", true);
+							&& RG_IsCyberGag(rest.item)) {
+						RG_SetItemFlag(rest.item, "cyberJammed", true);
 						if (typeof KinkyDungeonSendTextMessage === "function")
 							KinkyDungeonSendTextMessage(8,
 								"Security lockout is engaged. The plug mechanism is disabled.", "#ff4444", 3);
@@ -337,9 +342,8 @@ if (typeof KinkyDungeonSendEvent === "function") {
 				if (typeof KinkyDungeonAllRestraintDynamic === "function") {
 					for (var rest2 of KinkyDungeonAllRestraintDynamic()) {
 						if (rest2.item && typeof KDItemDataQuery === "function"
-								&& KDItemDataQuery(rest2.item, "cyberJammed")
-								&& typeof KDItemDataSet === "function")
-							KDItemDataSet(rest2.item, "cyberJammed", false);
+								&& KDItemDataQuery(rest2.item, "cyberJammed"))
+							RG_SetItemFlag(rest2.item, "cyberJammed", false);
 					}
 				}
 			}
@@ -347,17 +351,17 @@ if (typeof KinkyDungeonSendEvent === "function") {
 		if (Event === "postMapgen") {
 			if (typeof KinkyDungeonAllRestraintDynamic === "function") {
 				for (var rest3 of KinkyDungeonAllRestraintDynamic()) {
-					if (!rest3.item || typeof KDItemDataSet !== "function") continue;
+					if (!rest3.item) continue;
 					if (typeof KDItemDataQuery === "function" && KDItemDataQuery(rest3.item, "cyberShorted"))
-						KDItemDataSet(rest3.item, "cyberShorted", false);
+						RG_SetItemFlag(rest3.item, "cyberShorted", false);
 					if (typeof KDItemDataQuery === "function" && KDItemDataQuery(rest3.item, "cyberJammed"))
-						KDItemDataSet(rest3.item, "cyberJammed", false);
+						RG_SetItemFlag(rest3.item, "cyberJammed", false);
 				}
 			}
 		}
 		return result;
 	};
-}
+})();
 
 // =========================================================================
 // Tongue Trap — 50% bad potion effects
@@ -393,10 +397,11 @@ function RG_ApplyBadPotionEffect(consumable: any, entity: any) {
 			KinkyDungeonMakeNoise(6, KinkyDungeonPlayerEntity.x, KinkyDungeonPlayerEntity.y);
 			msg += "your slurred verbal component fizzles, and the noise carries.";
 		} else if (name === "PotionStrength" && typeof KinkyDungeonApplyBuffToEntity === "function") {
-			KinkyDungeonApplyBuffToEntity(entity, {
-				id: "NumbedWeakness", name: "Numbed Weakness", aura: "#444488",
+			var buff: any = {
+				id: "NumbedWeakness", aura: "#444488",
 				type: "AttackDmg", power: -2, duration: 50, tags: ["weakness"],
-			});
+			};
+			KinkyDungeonApplyBuffToEntity(entity, buff);
 			msg += "your muscles go slack instead of strong.";
 		} else {
 			msg += "it doesn't taste like it should.";
@@ -406,74 +411,65 @@ function RG_ApplyBadPotionEffect(consumable: any, entity: any) {
 		KinkyDungeonSendActionMessage(7, msg, "#cc6680", 3);
 }
 
-if (typeof KinkyDungeonSendActionMessage === "function") {
-	var RG_OrigSAM = KinkyDungeonSendActionMessage;
-	KinkyDungeonSendActionMessage = function (priority: any, text: any, color: any, time: any) {
-		if (RG_SuppressNextPotionSuccessMsg && priority === 9) {
-			RG_SuppressNextPotionSuccessMsg = false;
-			return;
-		}
-		return RG_OrigSAM.apply(this, arguments as any);
-	};
-}
-if (typeof KinkyDungeonConsumableEffect === "function") {
-	var RG_OrigCE = KinkyDungeonConsumableEffect;
-	KinkyDungeonConsumableEffect = function (consumable: any, type: any, inv?: any) {
-		try {
-			if (RG_HasTongueTrap() && RG_IsSwappablePotion(consumable) && Math.random() < 0.5) {
-				RG_ApplyBadPotionEffect(consumable, typeof KDPlayer === "function" ? KDPlayer() : null);
-				RG_SuppressNextPotionSuccessMsg = true;
+(function RG_WrapPotionHooks() {
+	var g = RG_G();
+	if (typeof g.KinkyDungeonSendActionMessage === "function") {
+		var RG_OrigSAM = g.KinkyDungeonSendActionMessage;
+		g.KinkyDungeonSendActionMessage = function (priority: any, text: any, color: any, time: any) {
+			if (RG_SuppressNextPotionSuccessMsg && priority === 9) {
+				RG_SuppressNextPotionSuccessMsg = false;
 				return;
 			}
-		} catch (_e) {}
-		return RG_OrigCE.apply(this, arguments as any);
-	};
-}
-if (typeof KDPotionTypes !== "undefined" && KDPotionTypes.Strength) {
-	var RG_OrigStr = KDPotionTypes.Strength.playerEffect;
-	KDPotionTypes.Strength.playerEffect = function (inv: any, quantity: any, user: any, target: any, tx: any, ty: any) {
-		try {
-			var consumable = typeof KDConsumable === "function" ? KDConsumable(inv) : null;
-			if (RG_HasTongueTrap() && consumable && Math.random() < 0.5) {
-				RG_ApplyBadPotionEffect(consumable, typeof KDPlayer === "function" ? KDPlayer() : null);
-				RG_SuppressNextPotionSuccessMsg = true;
-				return { success: true, consumed: quantity, time: 1, componentfailure: "",
-					miscast: false, affected: [target] };
-			}
-		} catch (_e) {}
-		return RG_OrigStr.call(this, inv, quantity, user, target, tx, ty);
-	};
-}
-
-// Cyber potion short-circuit (20%)
-if (typeof KinkyDungeonConsumableEffect === "function") {
-	var RG_OrigCE2 = KinkyDungeonConsumableEffect;
-	// already wrapped above — chain further for cyber
-}
-(function () {
-	if (typeof KinkyDungeonConsumableEffect !== "function") return;
-	var prev = KinkyDungeonConsumableEffect;
-	KinkyDungeonConsumableEffect = function () {
-		var result = prev.apply(this, arguments as any);
-		try {
-			if (Math.random() < 0.2 && typeof KinkyDungeonAllRestraintDynamic === "function") {
-				for (var rest of KinkyDungeonAllRestraintDynamic()) {
-					if (rest.item && typeof RG_IsSwapPair === "function" && RG_IsSwapPair(rest.item)
-							&& RG_IsCyberGag(rest.item) && !RG_IsCyberShorted(rest.item)) {
-						if (typeof RG_IsOpenVariant === "function" && RG_IsOpenVariant(rest.item.name)
-								&& typeof RG_PerformSwap === "function")
-							RG_PerformSwap(rest.item);
-						if (typeof KDItemDataSet === "function") KDItemDataSet(rest.item, "cyberShorted", true);
-						if (typeof KinkyDungeonSendTextMessage === "function")
-							KinkyDungeonSendTextMessage(8,
-								"Liquid seeps into the mechanism. A short circuit forces the plug closed.", "#ff6666", 3);
-						break;
+			return RG_OrigSAM.apply(this, arguments as any);
+		};
+	}
+	if (typeof g.KinkyDungeonConsumableEffect === "function") {
+		var RG_OrigCE = g.KinkyDungeonConsumableEffect;
+		g.KinkyDungeonConsumableEffect = function (consumable: any, type: any, inv?: any) {
+			try {
+				if (RG_HasTongueTrap() && RG_IsSwappablePotion(consumable) && Math.random() < 0.5) {
+					RG_ApplyBadPotionEffect(consumable, typeof KDPlayer === "function" ? KDPlayer() : null);
+					RG_SuppressNextPotionSuccessMsg = true;
+					return;
+				}
+			} catch (_e) {}
+			var result = RG_OrigCE.apply(this, arguments as any);
+			// Cyber potion short-circuit (20%)
+			try {
+				if (Math.random() < 0.2 && typeof KinkyDungeonAllRestraintDynamic === "function") {
+					for (var rest of KinkyDungeonAllRestraintDynamic()) {
+						if (rest.item && typeof RG_IsSwapPair === "function" && RG_IsSwapPair(rest.item)
+								&& RG_IsCyberGag(rest.item) && !RG_IsCyberShorted(rest.item)) {
+							if (typeof RG_IsOpenVariant === "function" && RG_IsOpenVariant(rest.item.name)
+									&& typeof RG_PerformSwap === "function")
+								RG_PerformSwap(rest.item);
+							RG_SetItemFlag(rest.item, "cyberShorted", true);
+							if (typeof KinkyDungeonSendTextMessage === "function")
+								KinkyDungeonSendTextMessage(8,
+									"Liquid seeps into the mechanism. A short circuit forces the plug closed.", "#ff6666", 3);
+							break;
+						}
 					}
 				}
-			}
-		} catch (_e) {}
-		return result;
-	};
+			} catch (_e2) {}
+			return result;
+		};
+	}
+	if (typeof KDPotionTypes !== "undefined" && KDPotionTypes.Strength) {
+		var RG_OrigStr = KDPotionTypes.Strength.playerEffect;
+		KDPotionTypes.Strength.playerEffect = function (inv: any, quantity: any, user: any, target: any, tx: any, ty: any) {
+			try {
+				var consumable = typeof KDConsumable === "function" ? KDConsumable(inv) : null;
+				if (RG_HasTongueTrap() && consumable && Math.random() < 0.5) {
+					RG_ApplyBadPotionEffect(consumable, typeof KDPlayer === "function" ? KDPlayer() : null);
+					RG_SuppressNextPotionSuccessMsg = true;
+					return { success: true, consumed: quantity, time: 1, componentfailure: "",
+						miscast: false, affected: [target] };
+				}
+			} catch (_e) {}
+			return RG_OrigStr.call(this, inv, quantity, user, target, tx, ty);
+		};
+	}
 })();
 
 // =========================================================================
@@ -501,7 +497,6 @@ if (typeof KDEventMapInventory !== "undefined") {
 		}
 	};
 
-	// Tick down cyber remote CD + poll lockout
 	var tickOrig = KDEventMapInventory["tick"] && KDEventMapInventory["tick"]["ringGagEffects"];
 	if (tickOrig && !(tickOrig as any)._rgCyberTick) {
 		KDEventMapInventory["tick"]["ringGagEffects"] = function (e: any, item: any, data: any) {
@@ -510,12 +505,12 @@ if (typeof KDEventMapInventory !== "undefined") {
 					var cd = (typeof KDItemDataQuery === "function") ? (KDItemDataQuery(item, "cyberRemoteCD") || 0) : 0;
 					if (cd > 0 && typeof KDItemDataSet === "function") KDItemDataSet(item, "cyberRemoteCD", cd - 1);
 					var lockout = (typeof KDGameData !== "undefined") ? (KDGameData.LockoutChance || 0) : 0;
-					if (lockout >= 0.99 && !RG_IsCyberJammed(item) && typeof KDItemDataSet === "function") {
-						KDItemDataSet(item, "cyberJammed", true);
+					if (lockout >= 0.99 && !RG_IsCyberJammed(item)) {
+						RG_SetItemFlag(item, "cyberJammed", true);
 						if (typeof KinkyDungeonSendTextMessage === "function")
 							KinkyDungeonSendTextMessage(8, "Security lockout: plug mechanism jammed.", "#ff4444", 3);
-					} else if (lockout < 0.99 && RG_IsCyberJammed(item) && typeof KDItemDataSet === "function") {
-						KDItemDataSet(item, "cyberJammed", false);
+					} else if (lockout < 0.99 && RG_IsCyberJammed(item)) {
+						RG_SetItemFlag(item, "cyberJammed", false);
 					}
 				}
 			} catch (_e) {}
@@ -525,7 +520,6 @@ if (typeof KDEventMapInventory !== "undefined") {
 	}
 }
 
-// Attach remotePunish to CyberPlugGag definition
 (function RG_PatchCyberEvents() {
 	function tryPatch() {
 		if (typeof KinkyDungeonGetRestraintByName !== "function") return false;
@@ -639,9 +633,12 @@ function RG_IsAllowedOverRing(item: any): boolean {
 	if (!r || !r.shrine) return false;
 	return r.shrine.indexOf("Stuffing") >= 0;
 }
-if (typeof KDDynamicLinkListSurface === "function") {
-	var RG_OrigSurface = KDDynamicLinkListSurface;
-	KDDynamicLinkListSurface = function (item: any) {
+
+(function RG_WrapSurfaceList() {
+	var g = RG_G();
+	if (typeof g.KDDynamicLinkListSurface !== "function") return;
+	var RG_OrigSurface = g.KDDynamicLinkListSurface;
+	g.KDDynamicLinkListSurface = function (item: any) {
 		var ret = RG_OrigSurface.call(this, item);
 		try {
 			var chain: any[] = [];
@@ -661,15 +658,8 @@ if (typeof KDDynamicLinkListSurface === "function") {
 		} catch (_e) {}
 		return ret;
 	};
-}
+})();
 
-// =========================================================================
-// Noise amplifier for Crier / Incantor (double radius in particle path)
-// =========================================================================
-// RingGagsDialogue already doubles for Crier; extend for Incantor via wrap
-if (typeof RG_HasCriersRingDlg === "function") {
-	// dialogue module checks Crier only — patch HasNoiseAmplifier into OpenParticles if present
-}
 
 if (typeof console !== "undefined" && console.log) {
 	console.log("[RingGags] Extras loaded: DroolLock, Crier, Incantor, TongueTrap, NPC swap, Cyber, API, surface block, auto-unplug");
