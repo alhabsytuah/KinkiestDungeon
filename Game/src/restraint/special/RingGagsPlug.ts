@@ -82,7 +82,10 @@ function RG_IsSwapPair(item) {
 function RG_IsPluggedVariant(name) { return !!RG_SWAP_PAIRS[name]; }
 function RG_IsOpenVariant(name) { return !!RG_SWAP_PAIRS_REVERSE[name]; }
 
-/** Deferred appearance + struggle UI refresh (never sync CharacterRefresh). */
+function RG_GAny(): any {
+	return typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+}
+
 function RG_ScheduleRefresh() {
 	try {
 		if (typeof KDUpdateItemEventCache !== "undefined") KDUpdateItemEventCache = true;
@@ -158,8 +161,6 @@ function RG_PerformSwap(item) {
 	var oldName = item.name;
 	item.name = siblingName;
 
-	// Critical: inventory Map is keyed by item.name. Without re-key, later
-	// remove-by-name / lookups fail silently (original mod bugfix).
 	try {
 		if (typeof KinkyDungeonInventory !== "undefined" && typeof KDInventoryType === "function") {
 			var invMap = KinkyDungeonInventory.get(KDInventoryType(item));
@@ -193,7 +194,6 @@ function RG_PerformSwap(item) {
 		}
 	} catch (_ee) {}
 
-	// Plugging: restore DefaultLock when definition expects one (RequireLocked flow)
 	try {
 		var def = typeof KDRestraint === "function" ? KDRestraint(item) : null;
 		if (def && def.DefaultLock && !item.lock
@@ -241,7 +241,6 @@ function RG_AddOpenVariant(baseName, modelOverride) {
 		if (!copy.shrine) copy.shrine = [];
 		if (copy.shrine.indexOf("OpenGag") < 0)
 			copy.shrine = copy.shrine.concat(["OpenGag"]);
-		// Open form is not locked shut — drop RequireLocked-style removal traps
 		delete copy.DefaultLock;
 		KinkyDungeonRestraints.push(copy);
 	} else {
@@ -311,7 +310,6 @@ function RG_RegisterStrugglePlugSwap() {
 	if (RG_StruggleButtonsWrapped) return;
 	RG_StruggleButtonsWrapped = true;
 
-	// Struggle panel beside worn restraints (primary UX in original mod)
 	if (typeof KDStruggleButtons !== "undefined") {
 		KDStruggleButtons.PlugSwap = function (data: any, i: any, query: any, _target: any, _entity: any) {
 			var x = data.x, y = data.y, ButtonWidth = data.ButtonWidth,
@@ -364,6 +362,7 @@ function RG_RegisterStrugglePlugSwap() {
 				var iconPath = root + "InventoryAction/" + iconName + ".png";
 				var left = sg && sg.left;
 				var bx = x + 495 - ButtonWidth + (left ? -(ButtonWidth) * i : (ButtonWidth) * i);
+				var btnOpts: any = { scaleImage: true, centered: true };
 				DrawButtonKDEx(
 					"sgPlugSwap" + button_index + (sg ? sg.group : ""),
 					function (_b) { return action(_b); },
@@ -374,13 +373,7 @@ function RG_RegisterStrugglePlugSwap() {
 					iconPath, "", false, true,
 					allowed ? (typeof KDButtonColorIntense !== "undefined" ? KDButtonColorIntense : undefined) : "rgba(255,50,50,0.5)",
 					undefined, undefined,
-					{
-						scaleImage: true,
-						centered: true,
-						helpTooltip: function () {
-							return RG_IsPluggedVariant(item.name) ? "Unplug (1 turn)" : "Plug (1 turn)";
-						},
-					}
+					btnOpts
 				);
 				return { i: i + 1, allowed: allowed, type: "PlugSwap",
 					image: RG_IsPluggedVariant(item.name) ? "InventoryAction/Unplug" : "InventoryAction/Plug" };
@@ -389,9 +382,10 @@ function RG_RegisterStrugglePlugSwap() {
 		};
 	}
 
-	if (typeof KDGetStruggleButtons === "function") {
-		var RG_OrigGetStruggleButtons = KDGetStruggleButtons;
-		KDGetStruggleButtons = function (data: any) {
+	var g = RG_GAny();
+	if (typeof g.KDGetStruggleButtons === "function") {
+		var RG_OrigGetStruggleButtons = g.KDGetStruggleButtons;
+		g.KDGetStruggleButtons = function (data: any) {
 			var ret = RG_OrigGetStruggleButtons(data);
 			if (!Array.isArray(ret)) ret = [];
 			if (ret.indexOf("ContextMenu") >= 0) return ret;
@@ -400,9 +394,9 @@ function RG_RegisterStrugglePlugSwap() {
 		};
 	}
 
-	if (typeof KDGetStruggleContextMenu === "function") {
-		var RG_OrigGetStruggleContextMenu = KDGetStruggleContextMenu;
-		KDGetStruggleContextMenu = function (item: any, sg: any, target: any, entity: any) {
+	if (typeof g.KDGetStruggleContextMenu === "function") {
+		var RG_OrigGetStruggleContextMenu = g.KDGetStruggleContextMenu;
+		g.KDGetStruggleContextMenu = function (item: any, sg: any, target: any, entity: any) {
 			var ret = RG_OrigGetStruggleContextMenu(item, sg, target, entity);
 			if (!Array.isArray(ret)) ret = [];
 			if (ret.indexOf("PlugSwap") < 0) return ret.concat(["PlugSwap"]);
@@ -413,11 +407,11 @@ function RG_RegisterStrugglePlugSwap() {
 
 function RG_WrapStruggleQuery() {
 	if (RG_StruggleFnWrapped) return;
-	if (typeof KinkyDungeonStruggle !== "function") return;
+	var g = RG_GAny();
+	if (typeof g.KinkyDungeonStruggle !== "function") return;
 	RG_StruggleFnWrapped = true;
-	var RG_OrigStruggleFn = KinkyDungeonStruggle;
-	KinkyDungeonStruggle = function (struggleGroup: any, StruggleType: any, index?: any, query?: any, retData?: any) {
-		// Cosmetic overlays — never struggle them off
+	var RG_OrigStruggleFn = g.KinkyDungeonStruggle;
+	g.KinkyDungeonStruggle = function (struggleGroup: any, StruggleType: any, index?: any, query?: any, retData?: any) {
 		if (struggleGroup === "RingGagDroolFX" || struggleGroup === "RingGagBreathFX") {
 			if (query && retData) {
 				retData.escapeChance = -100;
@@ -544,8 +538,7 @@ function RG_RegisterPlugSwap() {
 function RG_RegisterOpenGagDebuff() {
 	if (typeof KDDrawBuffIcons !== "function" || RG_DebuffWrapped) return;
 	var orig = KDDrawBuffIcons;
-	var g: any = typeof globalThis !== "undefined" ? globalThis
-		: (typeof window !== "undefined" ? window : {});
+	var g = RG_GAny();
 	g.KDDrawBuffIcons = function (minXX, minYY, statsDraw, side) {
 		try {
 			if (statsDraw && typeof RG_HasOnlyOpenGags === "function" && RG_HasOnlyOpenGags()) {
