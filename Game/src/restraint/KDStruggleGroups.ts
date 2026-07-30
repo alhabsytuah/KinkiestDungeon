@@ -20,39 +20,6 @@ interface KDStruggleGroupReturn {
     image?: string
 }
 
-// RingGags helpers (defined in RingGagsPlug.ts; optional at call time)
-declare function RG_IsSwapPair(item: any): boolean;
-declare function RG_IsPluggedVariant(name: string): boolean;
-declare function RG_DoPlayerPlugSwap(item: any): boolean;
-
-/** Local pair map so PlugSwap UI works even before/without RingGagsPlug runtime. */
-let KD_RG_SWAP_PAIRS: Record<string, string> = {
-	CyberPlugGag: "CyberPlugGagOpen",
-	GoodGirlGag: "GoodGirlGagOpen",
-	MikoGag: "MikoGagOpen",
-	PanelPlugGagHarness: "PanelPlugGagHarnessOpen",
-	PanelPlugGag: "PanelPlugGagOpen",
-	MaidMuzzle: "MaidMuzzleOpen",
-	CableGag: "CableGagOpen",
-	NylonCableGag: "NylonCableGagOpen",
-	SteelMuzzleGag: "SteelMuzzleGagOpen",
-	BlacksteelMuzzleGag: "BlacksteelMuzzleGagOpen",
-};
-let KD_RG_SWAP_REVERSE: Record<string, string> = {};
-(function () {
-	for (let k of Object.keys(KD_RG_SWAP_PAIRS)) KD_RG_SWAP_REVERSE[KD_RG_SWAP_PAIRS[k]] = k;
-})();
-function KD_RG_IsSwapPairLocal(item: any): boolean {
-	if (!item || !item.name) return false;
-	if (typeof RG_IsSwapPair === "function") return !!RG_IsSwapPair(item);
-	return !!(KD_RG_SWAP_PAIRS[item.name] || KD_RG_SWAP_REVERSE[item.name]);
-}
-function KD_RG_IsPluggedLocal(name: string): boolean {
-	if (!name) return false;
-	if (typeof RG_IsPluggedVariant === "function") return !!RG_IsPluggedVariant(name);
-	return !!KD_RG_SWAP_PAIRS[name];
-}
-
 let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, query: boolean, target: entity, entity: entity) => KDStruggleGroupReturn>  = {
 	Struggle: (data, i, query, target, entity) => {
 		let {btn, StruggleType, x, y, ButtonWidth, sg, button_index, item} = {...data};
@@ -68,12 +35,13 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 					KinkyDungeonFastStruggleType = "Struggle";
 				} else
 					KDSendInput("struggle", {group: sg.group, index: KDStruggleGroupLinkIndex[sg.group], type: "Struggle"});
+					//KinkyDungeonStruggle(sg, "Struggle");
 			}
 			return true;
         }
         if (query) {
             return {
-                i: 10,
+                i: 10, // repurpose i as priority
                 allowed: true,
                 image: "Struggle",
                 type: (KDGetCurse(data?.item)) ? "StruggleCurse" : "Struggle",
@@ -88,7 +56,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 			data.StruggleType = data.btn;
 		i++;
         allowed = true;
-		return {i: i,
+		return {i: i, 
             image: "Struggle", allowed: allowed, type: (KDGetCurse(item)) ? "StruggleCurse" : "Struggle"};
 	},
 	
@@ -101,7 +69,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
         };
         if (query) {
             return {
-                i: 8,
+                i: 8, // repurpose i as priority
                 allowed: allowed,
                 image: "CurseInfo",
                 type: "CurseInfo",
@@ -113,8 +81,8 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 				return action(_b);
 			}, true, x + 495 - ButtonWidth + ((sg.left) ? -(ButtonWidth)*i : (ButtonWidth)*i), y, ButtonWidth, ButtonWidth, "", KDBaseWhite, KinkyDungeonRootDirectory + ((KDGetCurse(item) && KDCurses[KDGetCurse(item)].customIcon_RemoveFailure) ? KDCurses[KDGetCurse(item)].customIcon_RemoveFailure : "CurseInfo") + ".png", "", undefined, true, KDButtonColorIntense, undefined, undefined, {scaleImage: true});
             i++;
-		}
-		return {i: i,
+		} 
+		return {i: i, 
             image: "CurseInfo",allowed: allowed, type: "CurseInfo"};
 	},
 	CurseUnlock: (data, i, query, target, entity) => {
@@ -127,7 +95,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 			}
         if (query) {
             return {
-                i: 9,
+                i: 9, // repurpose i as priority
                 allowed: allowed,
                 image: "CurseUnlock",
                 type: "CurseUnlock",
@@ -159,7 +127,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
         };
         if (query) {
             return {
-                i: 9,
+                i: 9, // repurpose i as priority
                 allowed:allowed,
                 image: data?.item.lock ? img : "Remove",
                 type: data?.item.lock ? "Unlock" : "Remove",
@@ -175,7 +143,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 				data.StruggleType = (item.lock) ? "Unlock" : "Remove";
 			i++;
 		}
-		return {i: i, allowed: allowed, type:
+		return {i: i, allowed: allowed, type: 
            item.lock ? "Unlock" : "Remove",
         image: data?.item.lock ? img : "Remove",
         };
@@ -183,7 +151,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 	Cut: (data, i, query, target, entity) => {
 		let {btn, StruggleType, x, y, ButtonWidth, sg, button_index, item} = {...data};
         let name = ((KinkyDungeonPlayerDamage && KinkyDungeonPlayerDamage.name && !KinkyDungeonPlayerDamage.unarmed) ? "Items/" + KDGetItemImage(KinkyDungeonPlayerDamage, KDPlayer()) : "Cut");
-
+			
         let img = KinkyDungeonRootDirectory + name + ".png";
         let allowed = !(KDGetCurse(item))
             && !sg.blocked
@@ -199,11 +167,12 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
             } else
                 KDSendInput("struggle", {group: sg.group,
                     image: img, index: KDStruggleGroupLinkIndex[sg.group], type: "Cut"});
+                //KinkyDungeonStruggle(sg, "Cut");
             return true;
         };
         if (query) {
             return {
-                i: 5,
+                i: 5, // repurpose i as priority
                 allowed: allowed,
                 type: "Cut",
                 image: img,
@@ -215,7 +184,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 				DrawButtonKDEx("sgCut" + button_index + sg.group, (_b) => {
 					return action(_b);
 				}, true, x + 495 - ButtonWidth + ((sg.left) ? -(ButtonWidth)*i : (ButtonWidth)*i), y, ButtonWidth, ButtonWidth, "",
-						(sg.magic) ? "#8394ff" : KDBaseWhite, KinkyDungeonRootDirectory + name + ".png",
+						(sg.magic) ? "#8394ff" : KDBaseWhite, KinkyDungeonRootDirectory + name + ".png", 
                         "", undefined, true, (sg.magic) ? "#8394ff" : KDButtonColorIntense, undefined, undefined, {scaleImage: true}))
 				data.StruggleType = btn;
 			i++;
@@ -237,11 +206,12 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
             } else
                 KDSendInput("struggle", {group: sg.group,
                     image: "UseTool", index: KDStruggleGroupLinkIndex[sg.group], type: "Pick"});
+                //KinkyDungeonStruggle(sg, "Pick");
             return true;
         };
         if (query) {
             return {
-                i: 3,
+                i: 3, // repurpose i as priority
                 allowed: allowed,
                 type: "Pick",
                 image: "UseTool",
@@ -254,78 +224,17 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 					return action(_b);
 				}, true, x + 495 - ButtonWidth + ((sg.left) ? -(ButtonWidth)*i : (ButtonWidth)*i), y, ButtonWidth, ButtonWidth, "", KDBaseWhite, KinkyDungeonRootDirectory + "UseTool.png", "", undefined, true, KDButtonColorIntense, undefined, undefined, {scaleImage: true}))
 				data.StruggleType = btn;
-
+                
 			i++;
 		}
 		return {i: i,
             image: "UseTool", allowed: allowed, type: "Pick"};
 	},
-	/** RingGags: plug / unplug for swap-pair plug gags */
-	PlugSwap: (data, i, query, target, entity) => {
-		let {x, y, ButtonWidth, sg, button_index, item} = {...data};
-		let isSwap = KD_RG_IsSwapPairLocal(item);
-		let curse = item && KDGetCurse(item);
-		let handsFree = !KinkyDungeonIsArmsBound() && !KinkyDungeonIsHandsBound();
-		let allowed = !!(isSwap && !curse && sg && !sg.blocked && handsFree);
-		let plugged = !!(item && KD_RG_IsPluggedLocal(item.name));
-		let iconRel = plugged ? "InventoryAction/Unplug.png" : "InventoryAction/Plug.png";
-
-		let action = (_b) => {
-			if (!isSwap) return false;
-			if (!handsFree) {
-				KinkyDungeonSendTextMessage(6, "Your hands aren't free enough to manage the plug.", "#cc6680", 2);
-				return true;
-			}
-			let itemIndex = (KDStruggleGroupLinkIndex && sg && KDStruggleGroupLinkIndex[sg.group])
-				? KDStruggleGroupLinkIndex[sg.group] : 0;
-			if (typeof KDSendInput === "function" && typeof KDInputTypes !== "undefined" && KDInputTypes["plugSwap"]) {
-				KDSendInput("plugSwap", { group: sg.group, index: itemIndex });
-			} else if (typeof RG_DoPlayerPlugSwap === "function") {
-				RG_DoPlayerPlugSwap(item);
-			} else {
-				KinkyDungeonSendTextMessage(6, "Plug system not loaded.", "#cc6680", 2);
-			}
-			return true;
-		};
-
-		if (query) {
-			return {
-				i: 7,
-				allowed: allowed,
-				image: iconRel.replace(".png", ""),
-				type: plugged ? "PlugSwapUnplug" : "PlugSwapPlug",
-				action: action,
-			};
-		}
-
-		if (isSwap && !curse) {
-			let btnColor = allowed ? KDButtonColorIntense : "rgba(255, 50, 50, 0.5)";
-			if (DrawButtonKDEx(
-				"sgPlugSwap" + button_index + sg.group,
-				(_b) => action(_b),
-				true,
-				x + 495 - ButtonWidth + ((sg.left) ? -(ButtonWidth)*i : (ButtonWidth)*i),
-				y, ButtonWidth, ButtonWidth, "",
-				allowed ? KDBaseWhite : "#ff4444",
-				KinkyDungeonRootDirectory + iconRel,
-				"", undefined, true, btnColor, undefined, undefined, {scaleImage: true}
-			)) {
-				data.StruggleType = plugged ? "PlugSwapUnplug" : "PlugSwapPlug";
-			}
-			i++;
-		}
-		return {
-			i: i,
-			allowed: allowed,
-			type: plugged ? "PlugSwapUnplug" : "PlugSwapPlug",
-			image: iconRel.replace(".png", ""),
-		};
-	},
 	ContextMenu: (data, i, query, target, entity) => {
         if (query) {
             return {
-                i: 0,
-                allowed: false,
+                i: 0, // repurpose i as priority
+                allowed: false, // not a real action
                 type: "ContextMenu",
             };
         }
@@ -350,7 +259,7 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
                 return true;
             }, true, x + 495 - ButtonWidth + ((sg.left) ? -(ButtonWidth)*i : (ButtonWidth)*i), y, ButtonWidth, ButtonWidth, "", KDBaseWhite, KinkyDungeonRootDirectory + "ContextMenu.png", "", undefined, true, KDButtonColorIntense, undefined, undefined, {scaleImage: true}))
             data.StruggleType = btn;
-
+            
         i++;
         allowed = true;
 		return {i: i, allowed: allowed, type: "ContextMenu"};
@@ -359,9 +268,9 @@ let KDStruggleButtons: Record<string, (data: KDStruggleButtonData, i: number, qu
 
 function KDGetStruggleButtons(data: KDStruggleButtonGetData) {
 	if (KDToggles.StruggleContext) return ["ContextMenu"];
-	return ["Struggle", "CurseInfo", "CurseUnlock", "Cut", "Remove", "Pick", "PlugSwap"];
+	return ["Struggle", "CurseInfo", "CurseUnlock", "Cut", "Remove", "Pick"];
 }
 
 function KDGetStruggleContextMenu(item: item, sg: StruggleGroup, target: entity, entity: entity) {
-	return ["Struggle", "CurseInfo", "CurseUnlock", "Cut", "Remove", "Pick", "PlugSwap"];
+	return ["Struggle", "CurseInfo", "CurseUnlock", "Cut", "Remove", "Pick"];
 }
