@@ -5,6 +5,9 @@
  *
  * State lives in RG_State (module-level), NOT on KDGameData,
  * so we do not need to extend KDGameDataBase.
+ *
+ * Drool visuals: DroolS1–S4 are sequential buildup levels (not random).
+ * Stage 1 → RingGagDroolS1FX, stage 2 → S2, etc.
  */
 
 "use strict";
@@ -71,9 +74,6 @@ var RG_State = {
 function RG_RandInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-function RG_RandomDroolVisual() {
-	return RG_RandInt(1, 4);
-}
 function RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax) {
 	var staminaRatio = staminaMax > 0 ? stamina / staminaMax : 1;
 	var tired = staminaRatio < RG_BREATH_TIRED;
@@ -139,6 +139,7 @@ function RG_ClearState() {
 	RG_State.CurrentOverlay = 0;
 	RG_State.BreathActive = false;
 	RG_State.DripCooldown = 0;
+	RG_State.PreferredDroolSFX = 1;
 	RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
 }
 
@@ -220,11 +221,17 @@ function RG_SilentRemoveRestraint(group) {
 	}
 }
 
+/**
+ * Apply drool overlay matching buildup stage.
+ * DroolS1–S4 sprites are sequential intensity levels (not random picks).
+ * stage 0 = clear; 1–4 = RingGagDroolS{n}FX.
+ */
 function RG_SetDroolOverlay(stage) {
 	if (stage === RG_State.CurrentOverlay) return;
 	if (RG_State.CurrentOverlay > 0) RG_SilentRemoveRestraint("RingGagDroolFX");
 	if (stage >= 1 && stage <= 4) {
-		var visual = RG_RandomDroolVisual();
+		// Visual = logical stage (S1→S2→S3→S4 buildup)
+		var visual = stage;
 		RG_State.PreferredDroolSFX = visual;
 		RG_SilentAddRestraint("RingGagDroolS" + visual + "FX");
 	}
@@ -355,7 +362,7 @@ function RG_TickHandler(_e, _item, data) {
 			RG_State.DroolStage = nextStage;
 			RG_State.DroolEpisode += 1;
 			RG_SetDroolOverlay(nextStage);
-			// Original mod: gulp on false-hope cycle return to S2
+			// Gulp on false-hope cycle return to S2
 			if (isCycling && nextStage === 2) RG_PlayGulp();
 		}
 	} else {
