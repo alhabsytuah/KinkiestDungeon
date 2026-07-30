@@ -3,11 +3,8 @@
  * Global script for tsc outFile (no export/import).
  * Loaded after KinkyDungeonRestraintsList via tsconfig files[].
  *
- * State lives in RG_State (module-level), NOT on KDGameData,
- * so we do not need to extend KDGameDataBase.
- *
- * Drool visuals: DroolS1–S4 are sequential buildup levels (not random).
- * Stage 1 → RingGagDroolS1FX, stage 2 → S2, etc.
+ * State lives in RG_State (module-level), NOT on KDGameData.
+ * Drool visuals: sequential DroolS1–S4 buildup + falling strand particles.
  */
 
 "use strict";
@@ -35,7 +32,7 @@ if (typeof KDEffectTiles !== "undefined") {
 		name: "DroolPuddle",
 		duration: 5,
 		priority: 2,
-		tags: ["wet", "slippery", "drool"], // REQUIRED
+		tags: ["wet", "slippery", "drool"],
 	};
 }
 
@@ -82,8 +79,7 @@ function RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax) {
 	return tired || huffing || aroused;
 }
 
-// --- Audio (Game/Audio/drip*.ogg, gulp*.ogg, unplug.ogg) ---
-// Original mod used new Audio + KDModFiles; vanilla paths use KinkyDungeonRootDirectory.
+// --- Audio ---
 function RG_PlayModSound(relPath, volMult) {
 	try {
 		if (typeof KDSoundEnabled === "function" && !KDSoundEnabled()) return;
@@ -95,10 +91,9 @@ function RG_PlayModSound(relPath, volMult) {
 		audio.volume = Math.min(base * (volMult != null ? volMult : 1), 1);
 		var p = audio.play();
 		if (p && typeof p.catch === "function") p.catch(function () {});
-	} catch (_e) { /* ignore missing / blocked audio */ }
+	} catch (_e) {}
 }
 function RG_PlayDrip() {
-	// Repo has drip1–6, drip8–13 (no drip7)
 	var n = RG_RandInt(1, 13);
 	if (n === 7) n = 8;
 	RG_PlayModSound("Audio/drip" + n + ".ogg", 1.2);
@@ -141,6 +136,8 @@ function RG_ClearState() {
 	RG_State.DripCooldown = 0;
 	RG_State.PreferredDroolSFX = 1;
 	RG_State.DroolCooldown = RG_RandInt(RG_COOLDOWNS["1"][0], RG_COOLDOWNS["1"][1]);
+	RG_StrandsStage = 0;
+	RG_Strands = [];
 }
 
 function RG_HasOpenGag() {
@@ -213,7 +210,7 @@ function RG_SilentRemoveRestraint(group) {
 	if (typeof oT === "function") g.KinkyDungeonSendTextMessage = function () {};
 	try {
 		KinkyDungeonRemoveRestraint(group, false, false, true);
-	} catch (_e) { /* ignore */ }
+	} catch (_e) {}
 	finally {
 		if (typeof oF === "function") g.KinkyDungeonSendFloater = oF;
 		if (typeof oA === "function") g.AudioPlayInstantSoundKD = oA;
@@ -221,28 +218,199 @@ function RG_SilentRemoveRestraint(group) {
 	}
 }
 
+/** Force player appearance refresh so overlay models show/hide immediately. */
+function RG_ForceAppearanceRefresh() {
+	try {
+		if (typeof KDUpdateItemEventCache !== "undefined") KDUpdateItemEventCache = true;
+	} catch (_e0) {}
+	try {
+		if (typeof KDRefreshCharacter !== "undefined" && typeof KinkyDungeonPlayer !== "undefined"
+				&& KDRefreshCharacter && KDRefreshCharacter.set)
+			KDRefreshCharacter.set(KinkyDungeonPlayer, true);
+	} catch (_e1) {}
+	if (typeof setTimeout === "function") {
+		setTimeout(function () {
+			try {
+				if (typeof KinkyDungeonDressPlayer === "function") KinkyDungeonDressPlayer();
+			} catch (_e2) {}
+		}, 0);
+	}
+}
+
 /**
- * Apply drool overlay matching buildup stage.
- * DroolS1–S4 sprites are sequential intensity levels (not random picks).
- * stage 0 = clear; 1–4 = RingGagDroolS{n}FX.
+ * Apply drool overlay matching buildup stage (sequential S1–S4).
  */
 function RG_SetDroolOverlay(stage) {
 	if (stage === RG_State.CurrentOverlay) return;
 	if (RG_State.CurrentOverlay > 0) RG_SilentRemoveRestraint("RingGagDroolFX");
 	if (stage >= 1 && stage <= 4) {
-		// Visual = logical stage (S1→S2→S3→S4 buildup)
 		var visual = stage;
 		RG_State.PreferredDroolSFX = visual;
 		RG_SilentAddRestraint("RingGagDroolS" + visual + "FX");
 	}
 	RG_State.CurrentOverlay = stage;
+	RG_ForceAppearanceRefresh();
 }
 function RG_SetBreathOverlay(show) {
 	if (show === RG_State.BreathActive) return;
 	if (!show) RG_SilentRemoveRestraint("RingGagBreathFX");
 	else RG_SilentAddRestraint("RingGagBreathFX");
 	RG_State.BreathActive = show;
+	RG_ForceAppearanceRefresh();
 }
+
+// =========================================================================
+// Drool strand particles (from original mod — real-time falling strands)
+// =========================================================================
+var RG_MOUTH_HALF_WIDTH = 15;
+var RG_DROOL_Y_OFFSET = 25;
+var RG_DROOL_X_OFFSET = -10;
+var RG_STRAND_BIAS = 0.65;
+var RG_STRAND_CONFIGS = {
+	1: [8000],
+	2: [6000, 4500],
+	3: [3000, 3500],
+	4: [6000, 4500, 5000]
+};
+var RG_Strands = [];
+var RG_StrandsStage = 0;
+
+function RG_InitStrands(stage) {
+	var cfg = RG_STRAND_CONFIGS[stage];
+	if (!cfg) {
+		RG_Strands = [];
+		RG_StrandsStage = 0;
+		return;
+	}
+	RG_Strands = [];
+	var now = (typeof CommonTime === "function") ? CommonTime() : Date.now();
+	for (var i = 0; i < cfg.length; i++) {
+		RG_Strands.push({
+			interval: cfg[i],
+			lastTime: now - Math.floor(Math.random() * cfg[i]),
+			lastXOffset: (Math.random() - 0.5) * 2 * RG_MOUTH_HALF_WIDTH
+		});
+	}
+	RG_StrandsStage = stage;
+}
+
+function RG_NextStrandX(strand) {
+	var randomX = (Math.random() - 0.5) * 2 * RG_MOUTH_HALF_WIDTH;
+	var newX = strand.lastXOffset * RG_STRAND_BIAS + randomX * (1 - RG_STRAND_BIAS);
+	if (newX > RG_MOUTH_HALF_WIDTH) newX = RG_MOUTH_HALF_WIDTH;
+	if (newX < -RG_MOUTH_HALF_WIDTH) newX = -RG_MOUTH_HALF_WIDTH;
+	strand.lastXOffset = newX;
+	return newX;
+}
+
+function RG_SpawnStrandParticles(spawnX, baseY, dropDistance) {
+	if (typeof KDAddParticle !== "function") return;
+
+	var shortLife = 800 + Math.random() * 200;
+	var longLife = 1800 + Math.random() * 400;
+	var shortVy = (dropDistance * 0.2) / shortLife;
+	var longVy = dropDistance / longLife;
+
+	KDAddParticle(spawnX, baseY, "Models/SFX/SFX_DroolStrandShort.png", undefined, {
+		time: 0,
+		lifetime: shortLife,
+		vx: 0,
+		vy: shortVy,
+		zIndex: 60,
+		sin_x: 0,
+		sin_y: 0,
+		sin_period: 1,
+		phase: 0,
+		fadeEase: "invcos",
+		rotation: 0,
+		scale: 0.4 + Math.random() * 0.15,
+	});
+
+	// Drip SFX roughly when strand would hit ground
+	(function (life) {
+		if (typeof setTimeout !== "function") return;
+		setTimeout(function () { RG_PlayDrip(); }, life);
+	})(longLife * 0.5);
+
+	var longSegments = 4;
+	for (var seg = 0; seg < longSegments; seg++) {
+		var segT = seg / (longSegments - 1);
+		var expSpeed = (Math.exp(2.5 * segT) - 1) / (Math.exp(2.5) - 1);
+		var segVy = longVy * (0.3 + expSpeed * 2.5);
+		var segLife = longLife * (0.35 + segT * 0.65);
+		var segScale = 0.35 + segT * 0.15 + Math.random() * 0.1;
+		KDAddParticle(spawnX, baseY, "Models/SFX/SFX_DroolStrandLong.png", undefined, {
+			time: 0,
+			lifetime: segLife,
+			vx: 0,
+			vy: segVy,
+			zIndex: 60,
+			sin_x: 0,
+			sin_y: 0,
+			sin_period: 1,
+			phase: 0,
+			fadeEase: seg < longSegments - 1 ? "invcos" : undefined,
+			rotation: 0,
+			scale: segScale,
+		});
+	}
+}
+
+function RG_TickStrands() {
+	var stage = RG_State.CurrentOverlay;
+	if (!stage || stage < 1) {
+		RG_StrandsStage = 0;
+		return;
+	}
+	// Pause particles when mouth blocked
+	if (RG_IsStuffed() || !RG_HasOnlyOpenGags()) {
+		RG_StrandsStage = 0;
+		return;
+	}
+	if (stage !== RG_StrandsStage) {
+		RG_InitStrands(stage);
+	}
+	if (!RG_Strands.length) return;
+	if (typeof GetHardpointLoc !== "function" || typeof KinkyDungeonPlayer === "undefined") return;
+
+	var now = (typeof CommonTime === "function") ? CommonTime() : Date.now();
+	var flip = (typeof KDToggles !== "undefined" && KDToggles) ? KDToggles.FlipPlayer : false;
+	var pos = GetHardpointLoc(KinkyDungeonPlayer, 0, 0, 1, "Mouth", flip);
+	if (!pos) return;
+	var baseX = pos.x + RG_DROOL_X_OFFSET;
+	var baseY = pos.y + RG_DROOL_Y_OFFSET;
+	var feetPos = GetHardpointLoc(KinkyDungeonPlayer, 0, 0, 1, "Front", flip);
+	var dropDistance = feetPos ? (feetPos.y - pos.y) * 2.0 : 300;
+	if (dropDistance < 300) dropDistance = 300;
+
+	for (var i = 0; i < RG_Strands.length; i++) {
+		var strand = RG_Strands[i];
+		if (now < strand.lastTime + strand.interval) continue;
+		strand.lastTime = now;
+		var xOffset = RG_NextStrandX(strand);
+		var xJitter = (Math.random() - 0.5) * 3;
+		var spawnX = baseX + xOffset + xJitter;
+		RG_SpawnStrandParticles(spawnX, baseY, dropDistance);
+	}
+}
+
+// Hook into render loop (same as original mod)
+(function RG_HookStrandRender() {
+	if (typeof KDDrawArousalScreenFilter !== "function") {
+		// Retry after game loads
+		if (typeof setTimeout === "function") {
+			setTimeout(RG_HookStrandRender, 500);
+		}
+		return;
+	}
+	if ((KDDrawArousalScreenFilter as any)._rgStrandsHooked) return;
+	var orig = KDDrawArousalScreenFilter;
+	KDDrawArousalScreenFilter = function () {
+		orig.apply(this, arguments);
+		try { RG_TickStrands(); } catch (_e) {}
+	} as any;
+	(KDDrawArousalScreenFilter as any)._rgStrandsHooked = true;
+})();
 
 function RG_TickHandler(_e, _item, data) {
 	RG_InitState();
@@ -311,17 +479,6 @@ function RG_TickHandler(_e, _item, data) {
 		}
 	}
 
-	// Occasional drip while open + drooling (strand system not fully ported yet)
-	if (RG_State.DroolStage > 0 && !stuffed) {
-		if (RG_State.DripCooldown > 0) RG_State.DripCooldown -= 1;
-		else {
-			RG_PlayDrip();
-			RG_State.DripCooldown = RG_RandInt(8, 18);
-		}
-	} else {
-		RG_State.DripCooldown = 0;
-	}
-
 	if (stuffed) {
 		var dryFloor = hasDroolLock ? 2 : 0;
 		if (RG_State.DroolStage > dryFloor) {
@@ -362,7 +519,6 @@ function RG_TickHandler(_e, _item, data) {
 			RG_State.DroolStage = nextStage;
 			RG_State.DroolEpisode += 1;
 			RG_SetDroolOverlay(nextStage);
-			// Gulp on false-hope cycle return to S2
 			if (isCycling && nextStage === 2) RG_PlayGulp();
 		}
 	} else {
@@ -518,7 +674,7 @@ function RG_Register() {
 	}
 	RG_RegisterEvents();
 	if (typeof console !== "undefined" && console.log) {
-		console.log("[RingGags] Registered " + added + " restraints (list size=" + KinkyDungeonRestraints.length + ")");
+		console.log("[RingGags] Registered " + added + " restraints + strand particles");
 	}
 	return true;
 }
