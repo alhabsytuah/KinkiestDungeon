@@ -1,13 +1,6 @@
 /**
  * Naked Outfit — base-game port (from Ilyasnow NakedOutfit v1.12)
- *
- * Behaviour matches the original mod:
- * - Always-available non-droppable "None" / Naked outfit
- * - Bikini-style exposure resists + sneak/mana tradeoffs
- * - BodyPlus torso/nipple override via TextureAtlas/BodyPlus-0.*
- * - Visible bottom toys (PussyToy / VibeToy)
- *
- * Loaded after KinkyDungeonDressList via tsconfig files[].
+ * Matches original: permanent Naked outfit, BodyPlus OVERWRITES vanilla nude body, toys.
  */
 "use strict";
 
@@ -20,11 +13,11 @@ var NO_CFG = {
 };
 
 var NO_RestraintPlugsF = ["TrapPlug", "TrapPlug2", "TrapPlug3", "TrapPlug4", "TrapPlug5", "SteelPlugF"];
-var NO_RestraintPlugsR = ["RearVibe1", "SteelPlugR"];
 var NO_RestraintVibes = ["TrapVibe", "TrapVibeProto", "MaidVibe"];
 
 var NO_BodyPlusApplied = false;
 var NO_BodyPlusSheet: any = null;
+var NO_BodyPlusTries = 0;
 
 function NO_NakedEvents(): any[] {
 	var events: any[] = [
@@ -71,7 +64,6 @@ function NO_RegisterOutfit() {
 		}
 	} catch (_e) {}
 
-	// Original mod: KDEventMapOutfit.calcEfficientMana = KDEventMapInventory.calcEfficientMana
 	try {
 		if (typeof KDEventMapOutfit !== "undefined" && typeof KDEventMapInventory !== "undefined") {
 			var invMap: any = KDEventMapInventory;
@@ -125,8 +117,35 @@ function NO_EnsureInventoryNone() {
 	} catch (_e) {}
 }
 
+/** Original mod: KDModFiles["Game/Outfits/None.png"] = Free.png — stops None.png 404. */
+function NO_AliasNoneIcon() {
+	try {
+		var g: any = typeof globalThis !== "undefined" ? globalThis : window;
+		if (typeof KDModFiles === "undefined" || !KDModFiles) {
+			try {
+				g.KDModFiles = {};
+			} catch (_e) {}
+		}
+		if (typeof KDModFiles !== "undefined" && KDModFiles) {
+			if (!KDModFiles["Game/Outfits/None.png"]) {
+				KDModFiles["Game/Outfits/None.png"] =
+					KDModFiles["Game/Poses/Free.png"] || "Game/Poses/Free.png";
+			}
+		}
+	} catch (_e) {}
+	try {
+		if (typeof kdpixitex !== "undefined" && kdpixitex) {
+			if (!kdpixitex.has("Game/Outfits/None.png") && kdpixitex.has("Game/Poses/Free.png")) {
+				kdpixitex.set("Game/Outfits/None.png", kdpixitex.get("Game/Poses/Free.png"));
+			}
+		}
+	} catch (_e) {}
+}
+
 function NO_WireInventory() {
 	if (!NO_CFG.AddNakedOutfit) return;
+
+	NO_AliasNoneIcon();
 
 	try {
 		var g: any = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : {};
@@ -135,6 +154,7 @@ function NO_WireInventory() {
 			g.KDInitInventory = function () {
 				var ret = KDInitInventoryOriginal.apply(this, arguments as any);
 				try {
+					NO_AliasNoneIcon();
 					if (typeof KinkyDungeonInventoryAddOutfit === "function") {
 						KinkyDungeonInventoryAddOutfit("None");
 					}
@@ -149,6 +169,8 @@ function NO_WireInventory() {
 			if (!KDEventMapGeneric.tick) KDEventMapGeneric.tick = {};
 			KDEventMapGeneric.tick["nakedOutfitEnsure"] = function (_e: any, _data: any) {
 				NO_EnsureInventoryNone();
+				NO_AliasNoneIcon();
+				NO_EnsureNipplesVisible();
 			};
 		}
 	} catch (_e) {}
@@ -161,14 +183,6 @@ function NO_WireInventory() {
 				if (item && item.type == Outfit && item.name == "None") return false;
 				return ret;
 			};
-		}
-	} catch (_e) {}
-
-	try {
-		if (typeof kdpixitex !== "undefined" && kdpixitex) {
-			if (!kdpixitex.has("Game/Outfits/None.png") && kdpixitex.has("Game/Poses/Free.png")) {
-				kdpixitex.set("Game/Outfits/None.png", kdpixitex.get("Game/Poses/Free.png"));
-			}
 		}
 	} catch (_e) {}
 }
@@ -275,38 +289,44 @@ function NO_WireToySkin() {
 	} catch (_e) {}
 }
 
-/** Original-mod OverrideTextures — force kdpixitex from BodyPlus sheet / PIXI cache. */
+/**
+ * Original OverrideTextures: PIXI.Texture.from(image) then kdpixitex.set.
+ * BodyPlus frames use full paths (Models/Body/Nipples.png, etc.).
+ */
 function NO_OverrideTextures(paths: string[]) {
 	for (var i = 0; i < paths.length; i++) {
 		var image = paths[i];
 		try {
 			var tex: any = null;
 
-			// Prefer frame from loaded BodyPlus spritesheet
 			if (NO_BodyPlusSheet) {
 				var map: any = NO_BodyPlusSheet.textures;
-				if (!map && NO_BodyPlusSheet.linkedSheets) {
-					try {
-						var linked: any[] = Object.values(NO_BodyPlusSheet.linkedSheets);
-						for (var li = 0; li < linked.length; li++) {
-							if (linked[li] && linked[li].textures && linked[li].textures[image]) {
-								map = linked[li].textures;
-								break;
-							}
-						}
-					} catch (_e) {}
-				}
 				if (map && map[image]) tex = map[image];
+				if (!tex && map) {
+					var base = image.split("/").pop() || "";
+					var keys = Object.keys(map);
+					for (var ki = 0; ki < keys.length; ki++) {
+						if (keys[ki] === image || keys[ki].endsWith("/" + base) || keys[ki] === base) {
+							tex = map[keys[ki]];
+							break;
+						}
+					}
+				}
 			}
 
-			// Fallback: PIXI global cache (original mod path)
 			if (!tex && typeof PIXI !== "undefined" && PIXI.Texture) {
-				tex = PIXI.Texture.from(image);
+				try {
+					tex = PIXI.Texture.from(image);
+				} catch (_e) {
+					tex = null;
+				}
 			}
 
 			if (tex && typeof kdpixitex !== "undefined" && kdpixitex) {
 				kdpixitex.set(image, tex);
 				console.log("[NakedOutfit] overridden texture " + image);
+			} else {
+				console.log("[NakedOutfit] no texture for " + image);
 			}
 		} catch (e) {
 			console.log("[NakedOutfit] Failed to get texture " + image, e);
@@ -314,7 +334,6 @@ function NO_OverrideTextures(paths: string[]) {
 	}
 }
 
-/** Nipples layer is hidden when KDToggles.Nipples is false (Poses.HideNipples). */
 function NO_EnsureNipplesVisible() {
 	if (!NO_CFG.ReplaceNipples) return;
 	try {
@@ -340,18 +359,14 @@ function NO_RefreshPlayerDraw() {
 			}
 			if (typeof DressPlayer === "function") {
 				DressPlayer();
+			} else if (typeof KinkyDungeonDressPlayer === "function") {
+				KinkyDungeonDressPlayer();
 			}
 		}
 	} catch (_e) {}
 }
 
-/** Called when BodyPlus atlas is fully loaded (progress >= 1 or promise resolve). */
-function NO_OnAtlasLoad(progress?: number, sheet?: any) {
-	if (typeof progress === "number" && progress < 1) return;
-
-	if (sheet) NO_BodyPlusSheet = sheet;
-
-	// Original mod paths
+function NO_ApplyBodyPlusOverrides() {
 	if (NO_CFG.ReplaceBody) {
 		NO_OverrideTextures([
 			"Models/Body/Torso.png",
@@ -362,7 +377,6 @@ function NO_OnAtlasLoad(progress?: number, sheet?: any) {
 	if (NO_CFG.ReplaceNipples) {
 		NO_OverrideTextures(["Models/Body/Nipples.png"]);
 	}
-	// Toys also live in the same atlas — register if present
 	if (NO_CFG.EnableToys) {
 		NO_OverrideTextures([
 			"Models/Toys/PussyToyBase.png",
@@ -372,97 +386,101 @@ function NO_OnAtlasLoad(progress?: number, sheet?: any) {
 			"Models/Toys/VibeToy.png",
 		]);
 	}
-
 	NO_EnsureNipplesVisible();
 	NO_BodyPlusApplied = true;
-	console.log("[NakedOutfit] BodyPlus applied (original OverrideTextures path)");
+	console.log("[NakedOutfit] BodyPlus overrides applied (vanilla nude body replaced)");
 	NO_RefreshPlayerDraw();
 }
 
+function NO_OnAtlasLoad(progress?: number, sheet?: any) {
+	if (typeof progress === "number" && progress < 1) return;
+	if (sheet) NO_BodyPlusSheet = sheet;
+	NO_ApplyBodyPlusOverrides();
+}
+
 /**
- * BodyPlus load — same idea as original:
- *   PIXI.Assets.load({ src: "TextureAtlas/BodyPlus-0.json", loadParser: "modAtlasLoader" }, OnAtlasLoad)
- * For vanilla disk files we also accept the default spritesheet parser.
+ * YES — BodyPlus overwrites the vanilla nude body.
+ * Original: PIXI.Assets.load({ src: "TextureAtlas/BodyPlus-0.json", loadParser: "modAtlasLoader" }, OnAtlasLoad)
+ * Then OverrideTextures sets kdpixitex for Models/Body/Torso*.png and Nipples.png.
  */
 function NO_LoadBodyPlusAtlas() {
 	if (!NO_CFG.ReplaceBody && !NO_CFG.ReplaceNipples && !NO_CFG.EnableToys) return;
+	if (typeof PIXI === "undefined" || !PIXI.Assets || !PIXI.Assets.load) {
+		console.log("[NakedOutfit] PIXI.Assets unavailable");
+		return;
+	}
 
 	var url = "TextureAtlas/BodyPlus-0.json";
+	NO_BodyPlusTries++;
 
-	function tryLoad() {
-		if (typeof PIXI === "undefined" || !PIXI.Assets || !PIXI.Assets.load) {
-			console.log("[NakedOutfit] PIXI.Assets unavailable");
-			return;
-		}
+	function onOk(sheet: any) {
+		if (sheet) NO_BodyPlusSheet = sheet;
+		NO_OnAtlasLoad(1, sheet);
+	}
 
-		// Prefer original modAtlasLoader when registered; else default spritesheet
-		var loadArg: any = url;
-		try {
-			if (PIXI.extensions && typeof PIXI.extensions.getByName === "function") {
-				// keep simple — object form with loadParser if mod parser exists
-			}
-			loadArg = { src: url, loadParser: "modAtlasLoader" };
-		} catch (_e) {
-			loadArg = url;
-		}
-
-		var p: any;
-		try {
-			// Signature: load(url, onProgress?) — progress callback like original
-			p = PIXI.Assets.load(loadArg, function (progress: number) {
-				NO_OnAtlasLoad(progress);
-			});
-		} catch (_e1) {
-			try {
-				p = PIXI.Assets.load(url);
-			} catch (_e2) {
-				console.log("[NakedOutfit] Assets.load failed", _e2);
-				return;
-			}
-		}
-
-		if (p && typeof p.then === "function") {
-			p.then(
-				function (sheet: any) {
-					NO_OnAtlasLoad(1, sheet);
-				},
-				function (err: any) {
-					console.log("[NakedOutfit] BodyPlus load failed (try without modAtlasLoader)", err);
-					// Fallback: plain path load
-					PIXI.Assets.load(url)
-						.then(function (sheet2: any) {
-							NO_OnAtlasLoad(1, sheet2);
-						})
-						.catch(function (e2: any) {
-							console.log(
-								"[NakedOutfit] BodyPlus failed — ensure TextureAtlas/BodyPlus-0.png sits next to BodyPlus-0.json",
-								e2
-							);
-						});
-				}
-			);
+	function onFail(err: any) {
+		console.log("[NakedOutfit] BodyPlus load attempt failed", err);
+		if (NO_BodyPlusTries < 4) {
+			setTimeout(function () {
+				try {
+					PIXI.Assets.load(url).then(onOk).catch(function (e2: any) {
+						console.log(
+							"[NakedOutfit] BodyPlus plain load failed — need TextureAtlas/BodyPlus-0.png next to JSON",
+							e2
+						);
+					});
+				} catch (_e) {}
+			}, 600);
 		}
 	}
 
-	tryLoad();
-	// Retry after main atlases (same timing idea as deferred game load)
-	setTimeout(function () {
-		if (!NO_BodyPlusApplied) tryLoad();
-	}, 1200);
+	// A: original modAtlasLoader
+	try {
+		var p1: any = PIXI.Assets.load(
+			{ src: url, loadParser: "modAtlasLoader" } as any,
+			function (progress: number) {
+				NO_OnAtlasLoad(progress);
+			}
+		);
+		if (p1 && typeof p1.then === "function") {
+			p1.then(onOk).catch(function () {
+				PIXI.Assets.load(url).then(onOk).catch(onFail);
+			});
+			return;
+		}
+	} catch (_e) {}
+
+	// B: default spritesheet (vanilla disk)
+	try {
+		PIXI.Assets.load(url).then(onOk).catch(onFail);
+	} catch (e) {
+		onFail(e);
+	}
 }
 
-function NO_Init() {
+function NO_AfterModLoad() {
+	NO_AliasNoneIcon();
 	NO_RegisterOutfit();
 	NO_WireInventory();
 	NO_RegisterToyModels();
 	NO_WireToySkin();
-	NO_EnsureNipplesVisible();
 	NO_LoadBodyPlusAtlas();
-	console.log("[NakedOutfit] Loaded: Naked outfit + BodyPlus + toys (v1.12 parity)");
+	// Late re-apply: main atlas may overwrite kdpixitex after first pass
+	setTimeout(function () {
+		NO_AliasNoneIcon();
+		if (!NO_BodyPlusApplied) NO_LoadBodyPlusAtlas();
+		else NO_ApplyBodyPlusOverrides();
+	}, 1500);
+	setTimeout(function () {
+		NO_AliasNoneIcon();
+		if (NO_BodyPlusSheet) NO_ApplyBodyPlusOverrides();
+		else if (!NO_BodyPlusApplied) NO_LoadBodyPlusAtlas();
+	}, 4000);
 }
 
 try {
-	NO_Init();
+	NO_AfterModLoad();
+	console.log("[NakedOutfit] base-game port loaded (BodyPlus overwrites vanilla nude body)");
 } catch (e) {
-	console.log("[NakedOutfit] Init error", e);
+	console.log("[NakedOutfit] init failed", e);
 }
