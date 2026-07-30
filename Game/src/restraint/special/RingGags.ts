@@ -30,7 +30,6 @@ var RingGagEvents = [
 	{ trigger: "postRemoval", type: "ringGagCleanup", inheritLinked: true },
 ];
 
-// --- DroolPuddle effect tile (once at load) ---
 if (typeof KDEffectTiles !== "undefined") {
 	KDEffectTiles["DroolPuddle"] = {
 		name: "DroolPuddle",
@@ -52,7 +51,6 @@ if (typeof KDEffectTileMoveOnFunctions !== "undefined") {
 	};
 }
 
-/** Runtime drool/breath state (not persisted on KDGameDataBase). */
 var RG_State = {
 	DroolCooldown: 0,
 	DroolDuration: 0,
@@ -83,7 +81,6 @@ function RG_ShouldShowBreath(stamina, staminaMax, distraction, distractionMax) {
 	return tired || huffing || aroused;
 }
 
-// --- Audio ---
 function RG_PlayModSound(relPath, volMult) {
 	try {
 		if (typeof KDSoundEnabled === "function" && !KDSoundEnabled()) return;
@@ -222,7 +219,6 @@ function RG_SilentRemoveRestraint(group) {
 	}
 }
 
-/** Force player appearance refresh so overlay models show/hide immediately. */
 function RG_ForceAppearanceRefresh() {
 	try {
 		if (typeof KDUpdateItemEventCache !== "undefined") KDUpdateItemEventCache = true;
@@ -241,16 +237,10 @@ function RG_ForceAppearanceRefresh() {
 	}
 }
 
-/**
- * Apply drool overlay for logical stage.
- * Visual sprite = random DroolS1–S4 (original mod behavior).
- * Logical stage drives timing, messages, cycling, strand intensity.
- */
 function RG_SetDroolOverlay(stage) {
 	if (stage === RG_State.CurrentOverlay) return;
 	if (RG_State.CurrentOverlay > 0) RG_SilentRemoveRestraint("RingGagDroolFX");
 	if (stage >= 1 && stage <= 4) {
-		// Original mod: random visual every time overlay is applied/updated
 		var visual = RG_RandInt(1, 4);
 		RG_State.PreferredDroolSFX = visual;
 		RG_SilentAddRestraint("RingGagDroolS" + visual + "FX");
@@ -266,10 +256,6 @@ function RG_SetBreathOverlay(show) {
 	RG_ForceAppearanceRefresh();
 }
 
-// =========================================================================
-// Drool strand particles (from original mod — real-time falling strands)
-// Intensity scales with logical stage (CurrentOverlay), not random visual.
-// =========================================================================
 var RG_MOUTH_HALF_WIDTH = 15;
 var RG_DROOL_Y_OFFSET = 25;
 var RG_DROOL_X_OFFSET = -10;
@@ -400,20 +386,22 @@ function RG_TickStrands() {
 	}
 }
 
+// Hook render loop via globalThis assignment (TS2630: cannot reassign typed function)
 (function RG_HookStrandRender() {
-	if (typeof KDDrawArousalScreenFilter !== "function") {
-		if (typeof setTimeout === "function") {
-			setTimeout(RG_HookStrandRender, 500);
-		}
+	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
+	var current = g.KDDrawArousalScreenFilter;
+	if (typeof current !== "function") {
+		if (typeof setTimeout === "function") setTimeout(RG_HookStrandRender, 500);
 		return;
 	}
-	if ((KDDrawArousalScreenFilter as any)._rgStrandsHooked) return;
-	var orig = KDDrawArousalScreenFilter;
-	KDDrawArousalScreenFilter = function () {
+	if (current._rgStrandsHooked) return;
+	var orig = current;
+	var hooked: any = function () {
 		orig.apply(this, arguments);
 		try { RG_TickStrands(); } catch (_e) {}
-	} as any;
-	(KDDrawArousalScreenFilter as any)._rgStrandsHooked = true;
+	};
+	hooked._rgStrandsHooked = true;
+	g.KDDrawArousalScreenFilter = hooked;
 })();
 
 function RG_TickHandler(_e, _item, data) {
