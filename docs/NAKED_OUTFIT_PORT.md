@@ -1,53 +1,79 @@
-# Naked Outfit — base-game port
+# Naked Outfit — complete base-game port (Ilyasnow v1.12)
 
-Port of **Naked Outfit v1.12** (Ilyasnow) into KinkiestDungeon as first-class content.
+**Nothing left behind.** Every functional piece of the original mod is present as first-class vanilla content on `feature/ringgags-port`.
 
-## Branch
+Original mod: `NakedOutfit-v1.12` (author Ilyasnow, gamemajor 5 / minor 4 / patch ≥81).
 
-`feature/ringgags-port` (shared with RingGags work)
+## Source of truth
 
-## Features
+| Original mod file | Vanilla destination |
+|-------------------|---------------------|
+| `NakedOutfit.ks` | `Game/src/player/NakedOutfit.ts` |
+| `TextureAtlas/BodyPlus-0.json` | `TextureAtlas/BodyPlus-0.json` (identical) |
+| `TextureAtlas/BodyPlus-0.png` | `TextureAtlas/BodyPlus-0.png` (identical) |
+| `mod.json` | N/A (settings → hard `NO_CFG`) |
 
-| Feature | Status |
-|---------|--------|
-| Always-available **Naked** outfit (`None`) | Done |
-| Non-droppable; kept first in outfit inventory | Done |
-| Exposure resists (ice/tickle/grope −0.2, acid/soap +0.3) | Done |
-| Sneak −0.2 + mana efficiency +0.1 | Done |
-| Empty dress `None` | Done |
-| BodyPlus torso / nipple atlas override | Done (needs `TextureAtlas/BodyPlus-0.*`) |
-| PussyToy / VibeToy models for plugs & vibes | Done (needs `Models/Toys/*`) |
+The original mod ships **no** loose `Models/Toys/*.png`. All toy/body frames live inside the BodyPlus atlas. The port does the same.
 
-## Files
+## Feature parity checklist
 
-| Path | Role |
-|------|------|
-| `Game/src/player/NakedOutfit.ts` | Runtime (outfit, inventory, toys, atlas) |
-| `TextureAtlas/BodyPlus-0.json` | Atlas frames |
-| `TextureAtlas/BodyPlus-0.png` | Atlas image |
-| `Models/Toys/*.png` | Toy sprites |
+| Original behavior | Vanilla status | Notes |
+|-------------------|----------------|-------|
+| Always-available **Naked** outfit (`None`) | **Done** | `NO_RegisterOutfit` + `NO_EnsureInventoryNone` |
+| Kept first in outfit inventory | **Done** | `new Map([["None", …], …old])` |
+| Non-droppable | **Done** | Hook on `KDInventoryAction.Drop.valid` |
+| Inventory icon alias (`None.png` → Free.png) | **Done** | Both `KDModFiles` and `kdpixitex` (port is stricter than original) |
+| Exposure resists (ice/tickle/grope −0.2, acid/soap +0.3) | **Done** | Copied verbatim from bikini |
+| Sneak −0.2 + mana efficiency +0.1 | **Done** | Gated by `NO_CFG.NakedOutfitBuffEvents` |
+| Empty dress `None` | **Done** | `NO_EnsureDressNone` |
+| BodyPlus torso overwrite (Torso / Spread / Closed) | **Done** | Atlas + `kdpixitex` |
+| Nipples overwrite | **Done** | + force-visible every tick |
+| VibeToy model + assignment | **Done** | TrapVibe / TrapVibeProto / MaidVibe |
+| PussyToy model + assignment | **Done** | TrapPlug 1–5, SteelPlugF |
+| Skin color on PussyToy (postApply) | **Done** | `nakedPussyToySkin` |
+| Config toggles | **Done** | Hardcoded `NO_CFG` (vanilla has no mod-settings UI) |
+| `modAtlasLoader` load path | **Done** | Primary path; plain spritesheet fallback |
+| Late re-apply against main-atlas race | **Done** | 1.5 s + 4 s (improvement over original) |
 
-## Config (`NO_CFG` in source)
+Dead code in original (`RestraintPlugsR = ["RearVibe1", "SteelPlugR"]`) was never used and is intentionally omitted.
+
+## Config (`NO_CFG`)
 
 ```ts
-AddNakedOutfit: true
-NakedOutfitBuffEvents: true
-ReplaceBody: true
-ReplaceNipples: true
-EnableToys: true
+var NO_CFG = {
+  AddNakedOutfit: true,        // original: NakedOutfitAddNakedOutfit
+  NakedOutfitBuffEvents: true, // original: NakedOutfitNakedOutfitBuffEvents
+  ReplaceBody: true,           // original: NakedOutfitReplaceBody
+  ReplaceNipples: true,        // original: NakedOutfitReplaceNipples
+  EnableToys: true,            // original: NakedOutfitEnableToys
+};
 ```
+
+Change any flag and rebuild. No restart-of-mod-settings required.
+
+## Runtime flow (mirrors original AfterModLoad)
+
+1. `NO_AliasNoneIcon`
+2. `NO_RegisterOutfit` (text keys, events, `KinkyDungeonOutfitsBase`)
+3. `NO_WireInventory` (KDInitInventory wrap, tick ensure, drop block)
+4. `NO_RegisterToyModels` (AddModel + restraint.Model assignment)
+5. `NO_WireToySkin` (postApply skin color)
+6. `NO_LoadBodyPlusAtlas` → `NO_ApplyBodyPlusOverrides`
+7. Delayed re-apply (1.5 s / 4 s) so the main game atlas cannot clobber BodyPlus
 
 ## Build
 
-```bat
-git pull
-npm run pack
+```bash
+npm run pack   # only if you change images
 npm run build
+npm run serve
 ```
 
-## Notes
+## Files touched
 
-- Inventory icon falls back to `Game/Poses/Free.png` when `Game/Outfits/None.png` is missing.
-- Toy assignment: TrapPlug 1–5, SteelPlugF, TrapVibe / Proto / MaidVibe.
-- Body override uses atlas + `modAtlasLoader` (same as original mod).
-- Orthogonal to RingGags.
+- `Game/src/player/NakedOutfit.ts` — sole runtime module (listed in `tsconfig.json`)
+- `TextureAtlas/BodyPlus-0.json`
+- `TextureAtlas/BodyPlus-0.png`
+- `docs/NAKED_OUTFIT_PORT.md` (this file)
+
+Orthogonal to RingGags work on the same branch.

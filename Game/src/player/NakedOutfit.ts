@@ -1,6 +1,13 @@
 /**
- * Naked Outfit — base-game port (from Ilyasnow NakedOutfit v1.12)
- * Matches original: permanent Naked outfit, BodyPlus OVERWRITES vanilla nude body, toys.
+ * Naked Outfit — complete base-game port of Ilyasnow NakedOutfit v1.12
+ *
+ * Original mod files → this file + TextureAtlas/BodyPlus-0.{json,png}
+ * Nothing left behind. See docs/NAKED_OUTFIT_PORT.md for full checklist.
+ *
+ * Original settings (mod UI) are hard NO_CFG flags below.
+ * BodyPlus OVERWRITES the vanilla nude body (Torso*/Nipples) and supplies toy frames.
+ *
+ * Original never shipped loose Models/Toys/*.png — everything lives in the atlas.
  */
 "use strict";
 
@@ -12,6 +19,7 @@ var NO_CFG = {
 	EnableToys: true,
 };
 
+// Original: RestraintPlugsF + RestraintVibes. (RestraintPlugsR was dead code in the mod.)
 var NO_RestraintPlugsF = ["TrapPlug", "TrapPlug2", "TrapPlug3", "TrapPlug4", "TrapPlug5", "SteelPlugF"];
 var NO_RestraintVibes = ["TrapVibe", "TrapVibeProto", "MaidVibe"];
 
@@ -20,6 +28,7 @@ var NO_BodyPlusSheet: any = null;
 var NO_BodyPlusTries = 0;
 
 function NO_NakedEvents(): any[] {
+	// Resist values copied from bikini outfit (identical to original)
 	var events: any[] = [
 		{ type: "damageResist", trigger: "tick", damage: "ice", power: -0.2 },
 		{ type: "damageResist", trigger: "tick", damage: "tickle", power: -0.2 },
@@ -64,6 +73,7 @@ function NO_RegisterOutfit() {
 		}
 	} catch (_e) {}
 
+	// Original: KDEventMapOutfit.calcEfficientMana = KDEventMapInventory.calcEfficientMana
 	try {
 		if (typeof KDEventMapOutfit !== "undefined" && typeof KDEventMapInventory !== "undefined") {
 			var invMap: any = KDEventMapInventory;
@@ -110,6 +120,7 @@ function NO_EnsureInventoryNone() {
 		var outfitMap = KinkyDungeonInventory.get(Outfit);
 		if (!outfitMap) return;
 		if (!outfitMap.get("None")) {
+			// Keep Naked first (original behaviour)
 			var entry = { name: "None", type: Outfit, id: KinkyDungeonGetItemID() };
 			var next = new Map([["None", entry as any], ...Array.from(outfitMap.entries())]);
 			KinkyDungeonInventory.set(Outfit, next);
@@ -117,7 +128,7 @@ function NO_EnsureInventoryNone() {
 	} catch (_e) {}
 }
 
-/** Original mod: KDModFiles["Game/Outfits/None.png"] = Free.png — stops None.png 404. */
+/** Original used only kdpixitex. Port also sets KDModFiles so resource loaders never 404. */
 function NO_AliasNoneIcon() {
 	try {
 		var g: any = typeof globalThis !== "undefined" ? globalThis : window;
@@ -147,6 +158,7 @@ function NO_WireInventory() {
 
 	NO_AliasNoneIcon();
 
+	// Original: wrap KDInitInventory so every new inventory gets Naked
 	try {
 		var g: any = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : {};
 		if (typeof KDInitInventory === "function") {
@@ -164,6 +176,7 @@ function NO_WireInventory() {
 		}
 	} catch (_e) {}
 
+	// Original tick: ensure Naked is present and first
 	try {
 		if (typeof KDEventMapGeneric !== "undefined") {
 			if (!KDEventMapGeneric.tick) KDEventMapGeneric.tick = {};
@@ -175,6 +188,7 @@ function NO_WireInventory() {
 		}
 	} catch (_e) {}
 
+	// Original: disable dropping
 	try {
 		if (typeof KDInventoryAction !== "undefined" && KDInventoryAction.Drop && KDInventoryAction.Drop.valid) {
 			var DropValidationOriginal = KDInventoryAction.Drop.valid;
@@ -200,6 +214,7 @@ function NO_RegisterToyModels() {
 			addTextKey("m_PussyToy_l_Vibe", "Vibe");
 		}
 
+		// Exact layer definitions from original NakedOutfit.ks
 		AddModel({
 			Name: "VibeToy",
 			Folder: "Toys",
@@ -249,6 +264,7 @@ function NO_RegisterToyModels() {
 			AddModel(GetModelRestraintVersion("PussyToy", true));
 		}
 
+		// Assign models to existing restraints (same list as original)
 		for (var vi = 0; vi < NO_RestraintVibes.length; vi++) {
 			var rv = typeof KinkyDungeonGetRestraintByName === "function" ? KinkyDungeonGetRestraintByName(NO_RestraintVibes[vi]) : null;
 			if (rv) rv.Model = "VibeToy";
@@ -264,6 +280,7 @@ function NO_RegisterToyModels() {
 
 function NO_WireToySkin() {
 	if (!NO_CFG.EnableToys) return;
+	// Original: KDEventMapGeneric.postApply.PussyToySkin
 	try {
 		if (typeof KDEventMapGeneric === "undefined") return;
 		if (!KDEventMapGeneric.postApply) KDEventMapGeneric.postApply = {};
@@ -290,8 +307,9 @@ function NO_WireToySkin() {
 }
 
 /**
- * Original OverrideTextures: PIXI.Texture.from(image) then kdpixitex.set.
- * BodyPlus frames use full paths (Models/Body/Nipples.png, etc.).
+ * Original OverrideTextures used PIXI.Texture.from(path).
+ * Because modAtlasLoader registers frame keys under those exact paths, it worked.
+ * Port prefers the loaded sheet textures first, then falls back to PIXI.Texture.from.
  */
 function NO_OverrideTextures(paths: string[]) {
 	for (var i = 0; i < paths.length; i++) {
@@ -367,6 +385,8 @@ function NO_RefreshPlayerDraw() {
 }
 
 function NO_ApplyBodyPlusOverrides() {
+	// Original OnAtlasLoad only overrode body + nipples.
+	// Port also pushes the five toy frames into kdpixitex so model lookups never 404.
 	if (NO_CFG.ReplaceBody) {
 		NO_OverrideTextures([
 			"Models/Body/Torso.png",
@@ -399,9 +419,8 @@ function NO_OnAtlasLoad(progress?: number, sheet?: any) {
 }
 
 /**
- * YES — BodyPlus overwrites the vanilla nude body.
  * Original: PIXI.Assets.load({ src: "TextureAtlas/BodyPlus-0.json", loadParser: "modAtlasLoader" }, OnAtlasLoad)
- * Then OverrideTextures sets kdpixitex for Models/Body/Torso*.png and Nipples.png.
+ * Port keeps that path first, then falls back to plain spritesheet load.
  */
 function NO_LoadBodyPlusAtlas() {
 	if (!NO_CFG.ReplaceBody && !NO_CFG.ReplaceNipples && !NO_CFG.EnableToys) return;
@@ -458,6 +477,7 @@ function NO_LoadBodyPlusAtlas() {
 	}
 }
 
+/** Equivalent of original AfterModLoad() */
 function NO_AfterModLoad() {
 	NO_AliasNoneIcon();
 	NO_RegisterOutfit();
@@ -465,7 +485,7 @@ function NO_AfterModLoad() {
 	NO_RegisterToyModels();
 	NO_WireToySkin();
 	NO_LoadBodyPlusAtlas();
-	// Late re-apply: main atlas may overwrite kdpixitex after first pass
+	// Improvement over original: main atlas can overwrite kdpixitex after first pass
 	setTimeout(function () {
 		NO_AliasNoneIcon();
 		if (!NO_BodyPlusApplied) NO_LoadBodyPlusAtlas();
@@ -480,7 +500,7 @@ function NO_AfterModLoad() {
 
 try {
 	NO_AfterModLoad();
-	console.log("[NakedOutfit] base-game port loaded (BodyPlus overwrites vanilla nude body)");
+	console.log("[NakedOutfit] complete vanilla port of Ilyasnow v1.12 loaded (BodyPlus overwrites vanilla nude body)");
 } catch (e) {
 	console.log("[NakedOutfit] init failed", e);
 }
