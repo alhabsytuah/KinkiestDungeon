@@ -5,10 +5,10 @@
  *
  * State lives in RG_State (module-level), NOT on KDGameData.
  *
- * Drool visual (SFX sprite) — matches original mod:
- *   Every overlay apply/update picks a RANDOM DroolS1–S4 visual.
- *   Logical stage progression (timing, messages, cycling, DroolLock) is sequential.
- * Strand particles scale with logical stage.
+ * Drool visual (SFX sprite) — sequential by design:
+ *   Stage 1 → DroolS1, Stage 2 → DroolS2, Stage 3 → DroolS3, Stage 4 → DroolS4.
+ *   Builds from light drool to full chin coverage; sustains at max (S4) when cycling.
+ * Strand particles also scale with logical stage.
  */
 
 "use strict";
@@ -237,13 +237,16 @@ function RG_ForceAppearanceRefresh() {
 	}
 }
 
+/**
+ * Apply drool overlay for logical stage.
+ * Visual = sequential DroolS{stage}: S1 light → S2 → S3 → S4 heavy / sustained max.
+ */
 function RG_SetDroolOverlay(stage) {
 	if (stage === RG_State.CurrentOverlay) return;
 	if (RG_State.CurrentOverlay > 0) RG_SilentRemoveRestraint("RingGagDroolFX");
 	if (stage >= 1 && stage <= 4) {
-		var visual = RG_RandInt(1, 4);
-		RG_State.PreferredDroolSFX = visual;
-		RG_SilentAddRestraint("RingGagDroolS" + visual + "FX");
+		RG_State.PreferredDroolSFX = stage;
+		RG_SilentAddRestraint("RingGagDroolS" + stage + "FX");
 	}
 	RG_State.CurrentOverlay = stage;
 	RG_ForceAppearanceRefresh();
@@ -386,7 +389,6 @@ function RG_TickStrands() {
 	}
 }
 
-// Hook render loop via globalThis assignment (TS2630: cannot reassign typed function)
 (function RG_HookStrandRender() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 	var current = g.KDDrawArousalScreenFilter;
@@ -666,7 +668,7 @@ function RG_Register() {
 	}
 	RG_RegisterEvents();
 	if (typeof console !== "undefined" && console.log) {
-		console.log("[RingGags] Registered " + added + " restraints + strand particles (random drool SFX)");
+		console.log("[RingGags] Registered " + added + " restraints + sequential drool S1–S4");
 	}
 	return true;
 }
