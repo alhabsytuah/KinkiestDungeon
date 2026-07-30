@@ -3,64 +3,46 @@
 Branch: `feature/ringgags-port`
 
 ## Code
-- `Game/src/restraint/special/RingGags.ts` — restraints, drool/breath tick, silent overlays
-- `Data/ModelList_RingGags.ts` — AddModel definitions (already on branch)
+- `Game/src/restraint/special/RingGags.ts` — restraints, drool/breath tick, silent overlays, sequential DroolS1–S4, audio helpers
+- `Game/src/restraint/special/RingGagsPlug.ts` — plug/unplug swap pairs + struggle UI
+- `Game/src/restraint/special/RingGagsDialogue.ts` — open-mouth speech + flavor
+- `Data/ModelList_RingGags.ts` — AddModel definitions
 - Listed in `tsconfig.json` files[]
 
-## Latest commit fixes
-- **RG_State** module state (avoids KDGameDataBase TS2339 errors)
-- Empty restraint text for BreathFX / DroolS*FX → no `+[NotFound]`
-- Silent add/remove suppresses floaters + text messages + sfx
-- Cosmetic FX: power -10, escapeChance -100
+## Latest fixes (2026-07-30)
+- **Sequential drool visuals**: stage N → `RingGagDroolSNFX` (DroolS1–S4 buildup, not random)
+- **Audio helpers**: `RG_PlayDrip` / `RG_PlayGulp` / `RG_PlayUnplug` (paths under `Game/Audio/`)
+- Occasional drip SFX while open + drooling; gulp on cycle return to S2
+- **DroolPuddle.png** uploaded to `Game/EffectTiles/` (wake puddles + slip)
+- Silent add/remove of cosmetic FX; RG_State module-level state
 
-## Open-mouth mechanisms (from original mod — apply into RingGags.ts)
+## Open-mouth mechanisms
 
-### 1. Muffled → open-mouth speech (`TextGet` hook)
-When **only** OpenGags are worn (`RG_HasOnlyOpenGags()`), replace base gag text keys:
+### 1. Muffled → open-mouth speech
+When **only** OpenGags are worn (`RG_HasOnlyOpenGags()`), speech uses open-mouth pools (Aahh… / Haahhh~ etc.) via `RingGagsDialogue.ts`.
 
-| Key prefix | Pool | Example |
-|------------|------|---------|
-| `KinkyDungeonGagMumbleAroused` | open aroused | `Aaahh~`, `Haahhh~` |
-| `KinkyDungeonGagMumble` | open mumble | `Aahh...`, `Haaahh...` |
-| `KinkyDungeonGagStruggleQuiet` | quiet struggle | `Aah.`, `Haa...` |
-| `KinkyDungeonGagStruggle` | struggle | `Aaagh!`, `Hnnaa!` |
-| `KinkyDungeonGagRestraint` | restraint | `Aah!`, `Nnaah!` |
+### 2. Saliva & drooling
+Episode start messages + escalating bound tiers; cycle S2 false-hope lines + gulp.
 
-Design: lips/jaw held apart → cannot form consonants; speech collapses to guttural vowels, deep sighs, indistinct sounds.
-
-### 2. Saliva & drooling (flavor on episode start)
-Fire `KinkyDungeonSendTextMessage` when a drool episode starts:
-- First episode → pooling saliva, lips cannot seal
-- Recurring → more drool escapes past the ring
-- Arms bound (cannot wipe) → escalating tiers (chin → neck → chest → resigned)
-- Cycle S2 → false-hope lines
-
-### 3. Breathing changes
-When breath overlay **turns on** (stamina < 50% or arousal ≥ 40%):
-- Tired → soft pants through the open ring
-- Huffing (stamina < 25%) → heavy mouth-breathing
-- Aroused → ragged gasps / sighs  
-Cooldown ~40 ticks to avoid spam.
+### 3. Breath overlay
+Stamina &lt; 50% / &lt; 25% or arousal ≥ 40% → breath FX while mouth open.
 
 ### 4. Audible noise
-On open-mouth speech, `KinkyDungeonMakeNoise(radius, x, y)`:
-- Mumble 4 / Aroused 8 / Struggle 6 / Quiet 2 / Restraint 4 tiles
-- Crier's Ring doubles radius  
-Hook when gag particles fire (`KDSendGagParticles`).
+Open-mouth speech can alert via `KinkyDungeonMakeNoise` (wired in dialogue module).
 
-### Restore last good RingGags.ts if needed
-```bash
-git checkout 958321e682171d7586fd2d186d296297b5be700d -- Game/src/restraint/special/RingGags.ts
-```
-Then merge the open-mouth pools + hooks from the original mod `RingGags.js` (search `RG_OPEN_MUMBLE`, `TextGet`, `RG_MSG_DROOL`, `RG_NOISE_RADII`).
+## Assets status
 
-## Assets still required (not on branch yet)
-`Models/RingGags/`, `Models/SFX/`, `Models/PlugGags/`, `Models/Common/`
-`Game/Audio/drip*.ogg`, `gulp*.ogg`, `unplug.ogg`
-`Game/Buffs/opengag_debuff.png`, `Game/EffectTiles/DroolPuddle.png`
-`Game/InventoryAction/Plug.png`, `Unplug.png`
+| Asset | Status |
+|-------|--------|
+| `Models/RingGags/` | Present |
+| `Models/SFX/` (DroolS1–4, Breath, strands, aaa) | Present |
+| `Models/PlugGags/`, `Models/Common/` | Present |
+| `Game/EffectTiles/DroolPuddle.png` | **Present** (uploaded) |
+| `Game/Audio/drip*.ogg`, `gulp*.ogg`, `unplug.ogg` | Still needed for SFX |
+| `Game/InventoryAction/Plug.png`, `Unplug.png` | Confirm |
+| `Game/Buffs/opengag_debuff.png` | Confirm |
 
-Unpack from `RingGags-Phase1-Assets.zip` at repo root, then:
+After remaining audio/icons:
 ```
 npm run pack
 npm run build
