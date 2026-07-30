@@ -13,13 +13,13 @@ var RG_AAA_PARTICLE = "Models/SFX/aaa.png";
 			if (++tries < 40 && typeof setTimeout === "function") setTimeout(install, 250);
 			return;
 		}
-		if ((KDSendGagParticles as any)._rgAaa) return;
-		(KDSendGagParticles as any)._rgAaa = true;
-
 		var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
-		var orig: any = g.KDSendGagParticles || KDSendGagParticles;
+		var existing: any = g.KDSendGagParticles || KDSendGagParticles;
+		if (existing && existing._rgAaa) return;
 
-		var hooked = function (entity: any) {
+		var orig: any = existing;
+
+		var hooked: any = function (entity: any) {
 			if (entity && entity.player && typeof RG_HasOnlyOpenGags === "function" && RG_HasOnlyOpenGags()) {
 				var s: any = (typeof RG_State !== "undefined") ? RG_State : {};
 				var cat = s.LastNoiseCategory;
@@ -45,23 +45,25 @@ var RG_AAA_PARTICLE = "Models/SFX/aaa.png";
 						var vx = vxx * Math.cos(pos.angle) - vyy * Math.sin(pos.angle);
 						var vy = vxx * Math.sin(pos.angle) + vyy * Math.cos(pos.angle);
 						var root = (typeof KinkyDungeonRootDirectory !== "undefined" && KinkyDungeonRootDirectory) ? KinkyDungeonRootDirectory : "";
-						KDAddParticleEmitter(x, y, root + "Aura/Null.png", RG_AAA_PARTICLE, undefined, {
+						// Cast emitter payloads as any — runtime accepts extra fields (dispersion, etc.)
+						var emitterData: any = {
 							time: 0, lifetime: 1000, vx: 0, vy: 0, zIndex: 60, dispersion: 0, cd: 0, rate: 235,
-						}, {
+						};
+						var particleData: any = {
 							time: 0, lifetime: lifetime, vx: vx, vy: vy, zIndex: 60,
 							sin_y: 0.1, sin_y_spread: 0.02, sin_period: 1.4, phase: 6 * Math.random(),
 							fadeEase: "invcos", rotation: 0, dispersion_spread: 0.25,
-						});
+						};
+						KDAddParticleEmitter(x, y, root + "Aura/Null.png", RG_AAA_PARTICLE, undefined, emitterData, particleData);
 						return;
 					}
 				} catch (_p) {}
 			}
 			return orig.apply(this, arguments);
 		};
+		hooked._rgAaa = true;
 
 		g.KDSendGagParticles = hooked;
-		// @ts-ignore
-		KDSendGagParticles = hooked;
 		if (typeof console !== "undefined" && console.log)
 			console.log("[RingGags] Open-mouth aaa particle + noise hook installed");
 	}
