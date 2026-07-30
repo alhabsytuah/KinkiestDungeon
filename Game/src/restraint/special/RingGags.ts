@@ -4,7 +4,11 @@
  * Loaded after KinkyDungeonRestraintsList via tsconfig files[].
  *
  * State lives in RG_State (module-level), NOT on KDGameData.
- * Drool visuals: sequential DroolS1–S4 buildup + falling strand particles.
+ *
+ * Drool visual (SFX sprite) — matches original mod:
+ *   Every overlay apply/update picks a RANDOM DroolS1–S4 visual.
+ *   Logical stage progression (timing, messages, cycling, DroolLock) is sequential.
+ * Strand particles scale with logical stage.
  */
 
 "use strict";
@@ -238,13 +242,16 @@ function RG_ForceAppearanceRefresh() {
 }
 
 /**
- * Apply drool overlay matching buildup stage (sequential S1–S4).
+ * Apply drool overlay for logical stage.
+ * Visual sprite = random DroolS1–S4 (original mod behavior).
+ * Logical stage drives timing, messages, cycling, strand intensity.
  */
 function RG_SetDroolOverlay(stage) {
 	if (stage === RG_State.CurrentOverlay) return;
 	if (RG_State.CurrentOverlay > 0) RG_SilentRemoveRestraint("RingGagDroolFX");
 	if (stage >= 1 && stage <= 4) {
-		var visual = stage;
+		// Original mod: random visual every time overlay is applied/updated
+		var visual = RG_RandInt(1, 4);
 		RG_State.PreferredDroolSFX = visual;
 		RG_SilentAddRestraint("RingGagDroolS" + visual + "FX");
 	}
@@ -261,6 +268,7 @@ function RG_SetBreathOverlay(show) {
 
 // =========================================================================
 // Drool strand particles (from original mod — real-time falling strands)
+// Intensity scales with logical stage (CurrentOverlay), not random visual.
 // =========================================================================
 var RG_MOUTH_HALF_WIDTH = 15;
 var RG_DROOL_Y_OFFSET = 25;
@@ -326,7 +334,6 @@ function RG_SpawnStrandParticles(spawnX, baseY, dropDistance) {
 		scale: 0.4 + Math.random() * 0.15,
 	});
 
-	// Drip SFX roughly when strand would hit ground
 	(function (life) {
 		if (typeof setTimeout !== "function") return;
 		setTimeout(function () { RG_PlayDrip(); }, life);
@@ -362,7 +369,6 @@ function RG_TickStrands() {
 		RG_StrandsStage = 0;
 		return;
 	}
-	// Pause particles when mouth blocked
 	if (RG_IsStuffed() || !RG_HasOnlyOpenGags()) {
 		RG_StrandsStage = 0;
 		return;
@@ -394,10 +400,8 @@ function RG_TickStrands() {
 	}
 }
 
-// Hook into render loop (same as original mod)
 (function RG_HookStrandRender() {
 	if (typeof KDDrawArousalScreenFilter !== "function") {
-		// Retry after game loads
 		if (typeof setTimeout === "function") {
 			setTimeout(RG_HookStrandRender, 500);
 		}
@@ -674,7 +678,7 @@ function RG_Register() {
 	}
 	RG_RegisterEvents();
 	if (typeof console !== "undefined" && console.log) {
-		console.log("[RingGags] Registered " + added + " restraints + strand particles");
+		console.log("[RingGags] Registered " + added + " restraints + strand particles (random drool SFX)");
 	}
 	return true;
 }
