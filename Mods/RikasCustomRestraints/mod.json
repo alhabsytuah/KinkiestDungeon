@@ -1,0 +1,19 @@
+{
+    "modname": "Rika's Custom Restraints",
+    "moddesc": "You know the rules and so do I \u2014 5.5 compatible, full English, model display fixes, UI button fix (no early KinkyDungeonLoad)",
+    "author": "\u6838_\u5f39 (Rika) / 5.5 port",
+    "modbuild": 1.73,
+    "gamemajor": 5,
+    "gameminor": 5,
+    "gamepatch_min": 0,
+    "gamepatch_max": -1,
+    "priority": 1,
+    "dependencies": {},
+    "optional": {},
+    "incompatibilities": {},
+    "fileorder": [
+        "RikasCustomRestraintsGraphic.ks",
+        "RikasCustomHairpin.ks",
+        "IsekaiWeapon.ks"
+    ]
+}
