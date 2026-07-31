@@ -2,28 +2,31 @@
 
 Ported/fixed for KinkiestDungeon **5.5** on the `feature/ringgags-port` line.
 
-## What this folder contains
-- Fixed scripts only (English, safe lock shim, **no top-level `KinkyDungeonLoad()`**).
-- This is the button-unclickable fix (1.73).
+## Status on this branch
+| File | In repo? |
+|------|----------|
+| `mod.json` (1.73) | yes |
+| `RikasCustomHairpin.ks` (no early Load) | yes |
+| `IsekaiWeapon.ks` | **add locally** — run `APPLY_1.73_FIX.sh` on your 1.72 pack |
+| `RikasCustomRestraintsGraphic.ks` | **add locally** — run `APPLY_1.73_FIX.sh` + remove early Load near top |
+| Asset folders (TextureAtlas, Models, …) | **copy from original pack** |
 
-## You still need the assets
-Copy these folders/files from the original Rika pack (or from `RikasCustomRestraints_5.5_compat.zip` / the 1.7.1 release) into this folder:
+## Quick setup
+1. Unpack the original Rika 1.7.1 (or the 1.72 5.5_compat zip) into `Mods/RikasCustomRestraints/`.
+2. Overwrite `mod.json` and `RikasCustomHairpin.ks` with the versions from this folder.
+3. Run:
+   ```bash
+   bash APPLY_1.73_FIX.sh
+   ```
+4. In `RikasCustomRestraintsGraphic.ks`, also delete the **early** pair near the top:
+   ```js
+   KinkyDungeonLoad()
+   KinkyDungeonLoadStats()
+   ```
+   (Leave the `originalKinkyDungeonLoad` override intact.)
+5. Launch the game — buttons should work again.
 
-- `TextureAtlas/` (rika-0/1/2 .json + .png)
-- `Models/`
-- `DisplacementMaps/`
-- `Items/`, `Locks/`, `Spells/`, `Outfits/`, `Buffs/`, `Bullets/`, `Enemies/`, `EnemiesBound/`
-
-Then either:
-- Zip the whole `RikasCustomRestraints/` folder and drop the zip into the game `Mods/` folder, **or**
-- Keep it unpacked under `Mods/RikasCustomRestraints/` (same layout as the example mods).
-
-## Changes vs upstream 1.7.1
-| Version | Notes |
-|---------|--------|
-| 1.71 | `mod.json` gate for 5.5 + Red_Hi lock shim |
-| 1.72 | Full English (all CN branches removed), robust atlas/displacement load |
-| **1.73** | Removed top-level `KinkyDungeonLoad()` / `KinkyDungeonLoadStats()` from all three `.ks` files (fixes unclickable UI buttons in 5.5). Safer lock shim. Guard on the `KinkyDungeonLoad` override. |
+See also [`docs/RIKA_5.5_COMPAT.md`](../../docs/RIKA_5.5_COMPAT.md).
 
 ## Credit
-Original mod by 核_弹 (Rika). 5.5 compatibility + English + UI fix by the ringgags-port work.
+Original mod by 核_弹 (Rika). 5.5 compatibility + English + UI fix on this fork.
