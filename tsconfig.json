@@ -35,6 +35,7 @@
         "Game/src/map/KinkyDungeonEditorGen.ts",
         "Game/src/base/KinkyDungeonErrors.ts",
         "Game/src/base/KinkyDungeon.ts",
+        "Game/src/base/KDTimeClock.ts",
         "Game/src/base/KDRender.ts",
         "Game/src/map/KDMapGen.ts",
         "Game/src/base/game/KinkyDungeonGame.ts",
