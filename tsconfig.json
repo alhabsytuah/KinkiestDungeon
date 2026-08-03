@@ -19,6 +19,7 @@
         "Game/src/base/KDShaders.ts",
         "Game/src/player/KDAutoStruggle.ts",
         "Game/src/player/KDPlayerMoveRealtime.ts",
+        "Game/src/player/KDCombatRestraintRealtime.ts",
         "Game/src/player/KDClasses.ts",
         "Game/src/base/KDParticles.ts",
         "Game/src/restraint/KDLocks.ts",
