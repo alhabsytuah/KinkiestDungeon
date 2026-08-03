@@ -2,16 +2,6 @@
 /**
  * Phase 1 — Core Time & Turn Loop foundation (hybrid / real-time prep)
  * Branch: feature/ringgags-port
- *
- * Default remains FULLY TURN-BASED. This module only:
- *  - Introduces a shared clock (KDTime)
- *  - Tracks mode: TurnBased | RealTimeExplore (future combat stays turn)
- *  - Optionally idle-advances discrete turns while exploring (feature flag)
- *  - Does NOT rewrite enemy AI, movement, or struggle yet
- *
- * Enable later:
- *   (window as any).KD_TIME_IDLE_TICK_ENABLED = true;
- *   (window as any).KD_TIME_IDLE_MS = 100;
  */
 (function KDTimeClockBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
@@ -21,17 +11,7 @@
 	if (typeof g.KD_TIME_ENGAGE_RANGE === "undefined") g.KD_TIME_ENGAGE_RANGE = 6;
 	if (typeof g.KD_TIME_REALTIME_ACCUM === "undefined") g.KD_TIME_REALTIME_ACCUM = false;
 
-	interface KDTimeState {
-		worldTime: number;
-		turnCount: number;
-		mode: string;
-		lastNow: number;
-		idleAcc: number;
-		fracAcc: number;
-		engaged: boolean;
-	}
-
-	var state: KDTimeState = {
+	var state: any = {
 		worldTime: 0,
 		turnCount: 0,
 		mode: "TurnBased",
@@ -48,8 +28,8 @@
 
 	function isGameActive(): boolean {
 		try {
-			if (typeof KinkyDungeonState !== "undefined" && KinkyDungeonState !== "Game") return false;
-			if (typeof KinkyDungeonDrawState !== "undefined" && KinkyDungeonDrawState && KinkyDungeonDrawState !== "Game") return false;
+			if (typeof g.KinkyDungeonState !== "undefined" && g.KinkyDungeonState !== "Game") return false;
+			if (typeof g.KinkyDungeonDrawState !== "undefined" && g.KinkyDungeonDrawState && g.KinkyDungeonDrawState !== "Game") return false;
 		} catch (_e) {}
 		return true;
 	}
@@ -60,14 +40,14 @@
 
 	function playerXY(): { x: number; y: number } {
 		try {
-			if (typeof KDPlayerPos === "function") {
-				var p = KDPlayerPos();
+			if (typeof g.KDPlayerPos === "function") {
+				var p = g.KDPlayerPos();
 				if (p && typeof p.x === "number") return { x: p.x, y: p.y };
 			}
 		} catch (_e) {}
 		try {
-			if (typeof KinkyDungeonPlayerEntity !== "undefined" && KinkyDungeonPlayerEntity)
-				return { x: KinkyDungeonPlayerEntity.x || 0, y: KinkyDungeonPlayerEntity.y || 0 };
+			if (g.KinkyDungeonPlayerEntity)
+				return { x: g.KinkyDungeonPlayerEntity.x || 0, y: g.KinkyDungeonPlayerEntity.y || 0 };
 		} catch (_e2) {}
 		return { x: 0, y: 0 };
 	}
@@ -77,8 +57,8 @@
 		var me = playerXY();
 		try {
 			var list: any = null;
-			if (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) list = KDMapData.Entities;
-			else if (typeof KinkyDungeonEntities !== "undefined") list = KinkyDungeonEntities;
+			if (g.KDMapData && g.KDMapData.Entities) list = g.KDMapData.Entities;
+			else if (g.KinkyDungeonEntities) list = g.KinkyDungeonEntities;
 			if (!list || !list.length) {
 				state.engaged = false;
 				return false;
@@ -88,7 +68,7 @@
 				if (!e || e.player) continue;
 				var hostile = true;
 				try {
-					if (typeof KinkyDungeonHostile === "function") hostile = !!KinkyDungeonHostile(e);
+					if (typeof g.KinkyDungeonHostile === "function") hostile = !!g.KinkyDungeonHostile(e);
 					else if (e.hostile === false || e.allied) hostile = false;
 				} catch (_h) {}
 				if (!hostile) continue;
@@ -116,17 +96,17 @@
 		return state.mode;
 	}
 
-	function KDTimeAdvanceTurn(reason?: string): boolean {
+	function KDTimeAdvanceTurn(_reason?: string): boolean {
 		try {
-			if (typeof KinkyDungeonAdvanceTime === "function") {
-				KinkyDungeonAdvanceTime(1, true, true);
+			if (typeof g.KinkyDungeonAdvanceTime === "function") {
+				g.KinkyDungeonAdvanceTime(1, true, true);
 				state.turnCount++;
 				return true;
 			}
 		} catch (_e) {
 			try {
-				if (typeof KinkyDungeonAdvanceTime === "function") {
-					KinkyDungeonAdvanceTime(1);
+				if (typeof g.KinkyDungeonAdvanceTime === "function") {
+					g.KinkyDungeonAdvanceTime(1);
 					state.turnCount++;
 					return true;
 				}
@@ -147,7 +127,7 @@
 		if (KDTimeIsEngaged()) return;
 
 		try {
-			if (typeof KinkyDungeonTargetingSpell !== "undefined" && KinkyDungeonTargetingSpell) return;
+			if (g.KinkyDungeonTargetingSpell) return;
 		} catch (_e) {}
 
 		state.idleAcc += dt * 1000;
@@ -200,6 +180,6 @@
 
 	try {
 		if (typeof console !== "undefined" && console.log)
-			console.log("[KDTime] Phase 1 clock online (default turn-based; idle tick OFF). Set KD_TIME_IDLE_TICK_ENABLED=true to auto-advance turns while exploring.");
+			console.log("[KDTime] Phase 1 clock online (default turn-based; idle tick OFF).");
 	} catch (_c) {}
 })();

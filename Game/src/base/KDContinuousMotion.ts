@@ -1,20 +1,5 @@
 "use strict";
-/**
- * Phase 5a — Continuous sub-tile positions / velocity
- * Branch: feature/ringgags-port
- *
- * Item 1 from hybrid gap list.
- *
- * Logic grid stays integer (x, y). This layer smooths entity.visual_x / visual_y
- * toward logical tiles so movement looks continuous between steps.
- *
- * Does NOT change collision, pathfinding, or turn rules.
- *
- * Enable:
- *   KD_MOTION_LERP_ENABLED = true;
- *   KD_MOTION_LERP_SPEED = 12;   // higher = snappier
- *   KD_MOTION_INCLUDE_ENEMIES = true;
- */
+/** Phase 5a — Continuous sub-tile visual positions (TS-safe) */
 (function KDContinuousMotionBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 
@@ -34,8 +19,8 @@
 
 	function isGameActive(): boolean {
 		try {
-			if (typeof KinkyDungeonState !== "undefined" && KinkyDungeonState !== "Game") return false;
-			if (typeof KinkyDungeonDrawState !== "undefined" && KinkyDungeonDrawState && KinkyDungeonDrawState !== "Game") return false;
+			if (typeof g.KinkyDungeonState !== "undefined" && g.KinkyDungeonState !== "Game") return false;
+			if (g.KinkyDungeonDrawState && g.KinkyDungeonDrawState !== "Game") return false;
 		} catch (_e) {}
 		return true;
 	}
@@ -45,6 +30,16 @@
 		if (typeof ent.x !== "number" || typeof ent.y !== "number") return;
 		if (typeof ent.visual_x !== "number" || !isFinite(ent.visual_x)) ent.visual_x = ent.x;
 		if (typeof ent.visual_y !== "number" || !isFinite(ent.visual_y)) ent.visual_y = ent.y;
+	}
+
+	function getPlayer(): any {
+		try {
+			if (g.KinkyDungeonPlayerEntity) return g.KinkyDungeonPlayerEntity;
+		} catch (_e) {}
+		try {
+			if (typeof g.KDPlayer === "function") return g.KDPlayer();
+		} catch (_e2) {}
+		return null;
 	}
 
 	function lerpEntity(ent: any, dt: number, speed: number): void {
@@ -60,22 +55,15 @@
 		if (dist > snap) {
 			ent.visual_x = tx;
 			ent.visual_y = ty;
-			if (ent === getPlayer()) {
-				velPlayer.vx = 0;
-				velPlayer.vy = 0;
-			}
+			if (ent === getPlayer()) { velPlayer.vx = 0; velPlayer.vy = 0; }
 			return;
 		}
 		if (dist < 0.001) {
 			ent.visual_x = tx;
 			ent.visual_y = ty;
-			if (ent === getPlayer()) {
-				velPlayer.vx *= 0.5;
-				velPlayer.vy *= 0.5;
-			}
+			if (ent === getPlayer()) { velPlayer.vx *= 0.5; velPlayer.vy *= 0.5; }
 			return;
 		}
-		// Exponential approach: 1 - e^(-k dt)
 		var k = Math.max(1, speed);
 		var a = 1 - Math.exp(-k * Math.max(0, dt));
 		if (a > 1) a = 1;
@@ -87,27 +75,16 @@
 		}
 		ent.visual_x = nx;
 		ent.visual_y = ny;
-		// Optional velocity fields for other systems
 		ent.__kd_vx = (tx - ent.visual_x) * k;
 		ent.__kd_vy = (ty - ent.visual_y) * k;
 	}
 
-	function getPlayer(): any {
-		try {
-			if (typeof KinkyDungeonPlayerEntity !== "undefined") return KinkyDungeonPlayerEntity;
-		} catch (_e) {}
-		try {
-			if (typeof KDPlayer === "function") return KDPlayer();
-		} catch (_e2) {}
-		return null;
-	}
-
 	function entityList(): any[] {
 		try {
-			if (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) return KDMapData.Entities;
+			if (g.KDMapData && g.KDMapData.Entities) return g.KDMapData.Entities;
 		} catch (_e) {}
 		try {
-			if (typeof KinkyDungeonEntities !== "undefined") return KinkyDungeonEntities;
+			if (g.KinkyDungeonEntities) return g.KinkyDungeonEntities;
 		} catch (_e2) {}
 		return [];
 	}
@@ -180,6 +157,6 @@
 
 	try {
 		if (typeof console !== "undefined" && console.log)
-			console.log("[KDMotion] Phase 5a continuous visual_x/y lerp online (default OFF). Set KD_MOTION_LERP_ENABLED=true.");
+			console.log("[KDMotion] Phase 5a continuous visual_x/y lerp online (default OFF).");
 	} catch (_c) {}
 })();

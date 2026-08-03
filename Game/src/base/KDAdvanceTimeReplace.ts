@@ -1,13 +1,5 @@
 "use strict";
-/**
- * Core replace layer — KinkyDungeonAdvanceTime
- * When KD_REPLACE_ADVANCE_TIME is true, AdvanceTime is mediated by this module:
- *  - continuous worldTime accumulation
- *  - fractional / batched enemy + effect ticks
- *  - still calls original for one logical unit when a full step is due
- *
- * Default OFF (vanilla AdvanceTime remains canonical until enabled).
- */
+/** Core replace layer — KinkyDungeonAdvanceTime (TS-safe) */
 (function KDAdvanceTimeReplaceBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 
@@ -22,7 +14,7 @@
 	var worldFrac = 0;
 
 	function capture(): void {
-		if (typeof g.KinkyDungeonAdvanceTime === "function" && !(g.KinkyDungeonAdvanceTime as any).__kdReplace) {
+		if (typeof g.KinkyDungeonAdvanceTime === "function" && !g.KinkyDungeonAdvanceTime.__kdReplace) {
 			original = g.KinkyDungeonAdvanceTime;
 		}
 	}
@@ -38,9 +30,8 @@
 		var scale = Number(g.KD_ADVANCE_TIME_SCALE) || 1;
 		var maxBatch = Math.max(1, Number(g.KD_ADVANCE_TIME_MAX_BATCH) || 3);
 
-		// Sync continuous clock
 		try {
-			if (typeof g.KDTimeState !== "undefined" && g.KDTimeState) {
+			if (g.KDTimeState) {
 				g.KDTimeState.worldTime += d * 0.1 * scale;
 				g.KDTimeState.turnCount += d;
 			}
@@ -49,7 +40,6 @@
 		worldFrac += d * scale;
 		var steps = Math.floor(worldFrac);
 		if (steps < 1) {
-			// Sub-turn: still run one light pass so effects don't stall
 			return original(1, noUpdate, suppress);
 		}
 		worldFrac -= steps;
@@ -58,9 +48,8 @@
 		var last: any;
 		for (var i = 0; i < steps; i++) {
 			last = original(1, noUpdate, suppress);
-			// Early stop if combat just engaged mid-batch
 			try {
-				if (typeof KDTimeIsEngaged === "function" && KDTimeIsEngaged() && i + 1 < steps) break;
+				if (typeof g.KDTimeIsEngaged === "function" && g.KDTimeIsEngaged() && i + 1 < steps) break;
 			} catch (_e2) {}
 		}
 		return last;
@@ -73,7 +62,7 @@
 			return;
 		}
 		if (installed) return;
-		mediatedAdvance.__kdReplace = true;
+		(mediatedAdvance as any).__kdReplace = true;
 		g.KinkyDungeonAdvanceTime = mediatedAdvance;
 		installed = true;
 		try {
