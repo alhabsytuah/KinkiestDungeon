@@ -46,6 +46,7 @@
         "Game/src/base/KDTimeClock.ts",
         "Game/src/base/KDContinuousMotion.ts",
         "Game/src/base/KDAdvanceTimeReplace.ts",
+        "Game/src/base/KDHybridComplete.ts",
         "Game/src/base/KDRender.ts",
         "Game/src/map/KDMapGen.ts",
         "Game/src/base/game/KinkyDungeonGame.ts",
