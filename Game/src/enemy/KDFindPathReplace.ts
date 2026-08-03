@@ -1,14 +1,5 @@
 "use strict";
-/**
- * Core replace layer — KinkyDungeonFindPath
- * When KD_REPLACE_FIND_PATH is true:
- *  - wraps FindPath with result cache (ttl)
- *  - hierarchical: reuse path if goal unchanged and still valid first step
- *  - continuous repath budget for entities with stale paths
- *  - KDFindPathClearCache() on map/floor change (via finalize)
- *
- * Vanilla A* remains the solver; this replaces *usage pattern*, not the algorithm body.
- */
+/** Core replace — FindPath cache (TS-safe) */
 (function KDFindPathReplaceBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 
@@ -19,7 +10,7 @@
 
 	var original: any = null;
 	var installed = false;
-	var cache: Record<string, { path: any; t: number; gx: number; gy: number }> = {};
+	var cache: any = {};
 	var hits = 0;
 	var misses = 0;
 	var clears = 0;
@@ -31,7 +22,7 @@
 		return Date.now();
 	}
 
-	function key(x1: number, y1: number, x2: number, y2: number, block?: any): string {
+	function key(x1: any, y1: any, x2: any, y2: any, block?: any): string {
 		return x1 + "," + y1 + ">" + x2 + "," + y2 + ":" + (block || "");
 	}
 
@@ -41,17 +32,17 @@
 	}
 
 	function capture(): void {
-		if (typeof g.KinkyDungeonFindPath === "function" && !(g.KinkyDungeonFindPath as any).__kdReplace) {
+		if (typeof g.KinkyDungeonFindPath === "function" && !g.KinkyDungeonFindPath.__kdReplace) {
 			original = g.KinkyDungeonFindPath;
 		}
 	}
 
-	function mediatedFindPath(): any {
+	var mediatedFindPath: any = function (): any {
 		capture();
 		if (!g.KD_REPLACE_FIND_PATH || typeof original !== "function") {
-			return original ? original.apply(null, arguments as any) : null;
+			return original ? original.apply(null, arguments) : null;
 		}
-		var args = arguments as any;
+		var args: any = arguments;
 		var x1 = args[0], y1 = args[1], x2 = args[2], y2 = args[3];
 		var block = args.length > 4 ? args[4] : undefined;
 		var k = key(x1, y1, x2, y2, typeof block === "object" ? "o" : block);
@@ -71,7 +62,7 @@
 			}
 		}
 		return path;
-	}
+	};
 
 	function install(): void {
 		capture();
@@ -83,23 +74,19 @@
 		mediatedFindPath.__kdReplace = true;
 		g.KinkyDungeonFindPath = mediatedFindPath;
 		installed = true;
-		try {
-			if (typeof console !== "undefined" && console.log)
-				console.log("[KDFindPathReplace] installed (active when KD_REPLACE_FIND_PATH=true)");
-		} catch (_c) {}
+		try { console.log("[KDFindPathReplace] installed"); } catch (_c) {}
 	}
 	install();
 
 	function entityList(): any[] {
 		try {
-			if (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) return KDMapData.Entities;
+			if (g.KDMapData && g.KDMapData.Entities) return g.KDMapData.Entities;
 		} catch (_e) {}
 		return [];
 	}
 
 	function repathTick(): void {
-		if (!g.KD_REPLACE_FIND_PATH) return;
-		if (typeof original !== "function") return;
+		if (!g.KD_REPLACE_FIND_PATH || typeof original !== "function") return;
 		var t = nowMs();
 		if (t - lastRepath < (Number(g.KD_PATH_REPATH_MS) || 300)) return;
 		lastRepath = t;

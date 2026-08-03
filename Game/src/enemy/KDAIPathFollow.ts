@@ -1,23 +1,5 @@
 "use strict";
-/**
- * Phase 5b — Per-frame path following (+ soft attack readiness)
- * Branch: feature/ringgags-port
- *
- * Item 2 from hybrid gap list.
- *
- * Path following:
- *  - If enemy has a path / gx,gy goal, visual smoothly tracks next cell
- *  - Optional movePoints drip boost while chasing a goal (explore only)
- *
- * Attack readiness:
- *  - Tracks a 0–1 charge toward "ready to act" per hostile near player
- *  - Does NOT fire attacks per-frame; charge only informs UI / future hooks
- *  - When engaged, readiness resets — actual attacks stay turn-based
- *
- * Enable:
- *   KD_PATH_FOLLOW_ENABLED = true;
- *   KD_ATTACK_READY_ENABLED = true;  // soft meter only
- */
+/** Phase 5b — path follow + soft attack ready (TS-safe) */
 (function KDAIPathFollowBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 
@@ -25,10 +7,10 @@
 	if (typeof g.KD_PATH_FOLLOW_SPEED === "undefined") g.KD_PATH_FOLLOW_SPEED = 10;
 	if (typeof g.KD_PATH_MOVEPOINTS_BOOST === "undefined") g.KD_PATH_MOVEPOINTS_BOOST = 0.15;
 	if (typeof g.KD_ATTACK_READY_ENABLED === "undefined") g.KD_ATTACK_READY_ENABLED = false;
-	if (typeof g.KD_ATTACK_READY_RATE === "undefined") g.KD_ATTACK_READY_RATE = 0.35; // per second toward 1.0
+	if (typeof g.KD_ATTACK_READY_RATE === "undefined") g.KD_ATTACK_READY_RATE = 0.35;
 
 	var lastNow = 0;
-	var readyMap: Record<string, number> = {};
+	var readyMap: any = {};
 
 	function nowMs(): number {
 		if (typeof performance !== "undefined" && performance.now) return performance.now();
@@ -37,40 +19,40 @@
 
 	function isGameActive(): boolean {
 		try {
-			if (typeof KinkyDungeonState !== "undefined" && KinkyDungeonState !== "Game") return false;
+			if (typeof g.KinkyDungeonState !== "undefined" && g.KinkyDungeonState !== "Game") return false;
 		} catch (_e) {}
 		return true;
 	}
 
 	function isEngaged(): boolean {
 		try {
-			if (typeof KDTimeIsEngaged === "function") return !!KDTimeIsEngaged();
+			if (typeof g.KDTimeIsEngaged === "function") return !!g.KDTimeIsEngaged();
 		} catch (_e) {}
 		return false;
 	}
 
-	function playerXY(): { x: number; y: number } {
+	function playerXY(): any {
 		try {
-			if (typeof KDPlayerPos === "function") {
-				var p = KDPlayerPos();
-				if (p && typeof p.x === "number") return { x: p.x, y: p.y };
+			if (typeof g.KDPlayerPos === "function") {
+				var p = g.KDPlayerPos();
+				if (p && typeof p.x === "number") return p;
 			}
 		} catch (_e) {}
 		try {
-			if (typeof KinkyDungeonPlayerEntity !== "undefined" && KinkyDungeonPlayerEntity)
-				return { x: KinkyDungeonPlayerEntity.x || 0, y: KinkyDungeonPlayerEntity.y || 0 };
+			if (g.KinkyDungeonPlayerEntity)
+				return { x: g.KinkyDungeonPlayerEntity.x || 0, y: g.KinkyDungeonPlayerEntity.y || 0 };
 		} catch (_e2) {}
 		return { x: 0, y: 0 };
 	}
 
 	function entityList(): any[] {
 		try {
-			if (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) return KDMapData.Entities;
+			if (g.KDMapData && g.KDMapData.Entities) return g.KDMapData.Entities;
 		} catch (_e) {}
 		return [];
 	}
 
-	function nextWaypoint(e: any): { x: number; y: number } | null {
+	function nextWaypoint(e: any): any {
 		try {
 			if (e.path && e.path.length) {
 				var n = e.path[0];
@@ -90,22 +72,19 @@
 		if (!wp) return;
 		if (typeof e.visual_x !== "number") e.visual_x = e.x;
 		if (typeof e.visual_y !== "number") e.visual_y = e.y;
-		// Bias visual slightly toward waypoint while still anchored by KDContinuousMotion to tile
 		var speed = Number(g.KD_PATH_FOLLOW_SPEED) || 10;
 		var a = 1 - Math.exp(-speed * dt);
 		var mx = (e.x + wp.x) * 0.5;
 		var my = (e.y + wp.y) * 0.5;
 		e.visual_x = e.visual_x + (mx - e.visual_x) * a * 0.35;
 		e.visual_y = e.visual_y + (my - e.visual_y) * a * 0.35;
-
-		// Explore: small movePoints help so path progresses on next world tick
 		if (!isEngaged() && typeof e.movePoints === "number") {
 			var boost = Number(g.KD_PATH_MOVEPOINTS_BOOST) || 0.15;
 			e.movePoints = Math.max(0, e.movePoints - boost * dt * 3);
 		}
 	}
 
-	function tickAttackReady(e: any, dt: number, me: { x: number; y: number }): void {
+	function tickAttackReady(e: any, dt: number, me: any): void {
 		if (!g.KD_ATTACK_READY_ENABLED) return;
 		var id = String(e.id != null ? e.id : (e.x + "," + e.y));
 		if (isEngaged()) {
@@ -124,7 +103,6 @@
 		if (r > 1) r = 1;
 		readyMap[id] = r;
 		e.__kd_attackReady = r;
-		// Intentionally no auto-attack — turns own attack resolution
 	}
 
 	function KDAIPathFollowTick(dt?: number): void {
@@ -147,15 +125,6 @@
 		}
 	}
 
-	function KDAIPathFollowGetState(): any {
-		return {
-			pathFollow: !!g.KD_PATH_FOLLOW_ENABLED,
-			attackReady: !!g.KD_ATTACK_READY_ENABLED,
-			engaged: isEngaged(),
-			readySample: readyMap,
-		};
-	}
-
 	function pump(): void {
 		try { KDAIPathFollowTick(); } catch (_e) {}
 		if (typeof requestAnimationFrame === "function") requestAnimationFrame(pump);
@@ -165,10 +134,9 @@
 	else setTimeout(pump, 16);
 
 	g.KDAIPathFollowTick = KDAIPathFollowTick;
-	g.KDAIPathFollowGetState = KDAIPathFollowGetState;
+	g.KDAIPathFollowGetState = function () {
+		return { pathFollow: !!g.KD_PATH_FOLLOW_ENABLED, attackReady: !!g.KD_ATTACK_READY_ENABLED, engaged: isEngaged() };
+	};
 
-	try {
-		if (typeof console !== "undefined" && console.log)
-			console.log("[KDAIPathFollow] Phase 5b path follow + soft attack ready (default OFF).");
-	} catch (_c) {}
+	try { console.log("[KDAIPathFollow] Phase 5b online (default OFF)."); } catch (_c) {}
 })();

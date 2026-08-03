@@ -1,14 +1,5 @@
 "use strict";
-/**
- * Final hybrid polish — closes last residual gaps
- * Branch: feature/ringgags-port
- *
- * 1) Path cache clear on map / floor change
- * 2) Draw visual enforcement (sync visual_* every frame for all entities)
- * 3) RT enemy attack signal → AdvanceTime nudge when wantAttack + engaged
- * 4) Struggle unlock hardened group resolution
- * 5) Registers onto unified pump when available
- */
+/** Final hybrid polish — TS-safe */
 (function KDHybridFinalizeBoot() {
 	var g: any = typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : {});
 
@@ -20,7 +11,7 @@
 	var lastMapId: any = null;
 	var lastFloor: any = null;
 	var lastNudge = 0;
-	var struggleCooldown: Record<string, number> = {};
+	var struggleCooldown: any = {};
 
 	function nowMs(): number {
 		if (typeof performance !== "undefined" && performance.now) return performance.now();
@@ -29,34 +20,34 @@
 
 	function isGameActive(): boolean {
 		try {
-			if (typeof KinkyDungeonState !== "undefined" && KinkyDungeonState !== "Game") return false;
+			if (typeof g.KinkyDungeonState !== "undefined" && g.KinkyDungeonState !== "Game") return false;
 		} catch (_e) {}
 		return true;
 	}
 
 	function isEngaged(): boolean {
 		try {
-			if (typeof KDTimeIsEngaged === "function") return !!KDTimeIsEngaged();
+			if (typeof g.KDTimeIsEngaged === "function") return !!g.KDTimeIsEngaged();
 		} catch (_e) {}
 		return false;
 	}
 
-	function mapFingerprint(): { id: any; floor: any } {
+	function mapFingerprint(): any {
 		var id: any = null;
 		var floor: any = null;
 		try {
-			if (typeof KDMapData !== "undefined" && KDMapData) {
-				id = KDMapData.id != null ? KDMapData.id : (KDMapData.Seed || KDMapData.Title || null);
+			if (g.KDMapData) {
+				var md: any = g.KDMapData;
+				id = md.id != null ? md.id : (md.Seed || md.Title || null);
 			}
 		} catch (_e) {}
 		try {
-			if (typeof MiniGameKinkyDungeonLevel !== "undefined") floor = MiniGameKinkyDungeonLevel;
-			else if (typeof KinkyDungeonCurrentLevel !== "undefined") floor = KinkyDungeonCurrentLevel;
+			if (typeof g.MiniGameKinkyDungeonLevel !== "undefined") floor = g.MiniGameKinkyDungeonLevel;
+			else if (typeof g.KinkyDungeonCurrentLevel !== "undefined") floor = g.KinkyDungeonCurrentLevel;
 		} catch (_e2) {}
 		return { id: id, floor: floor };
 	}
 
-	/** Clear path cache + entity paths on floor/map change */
 	function checkMapChange(): void {
 		var fp = mapFingerprint();
 		var changed = (lastMapId != null && fp.id != null && fp.id !== lastMapId) ||
@@ -73,48 +64,32 @@
 		}
 		lastMapId = fp.id;
 		lastFloor = fp.floor;
+		try { if (typeof g.KDFindPathClearCache === "function") g.KDFindPathClearCache(); } catch (_e) {}
+		try { if (typeof g.KDMotionSnapAll === "function") g.KDMotionSnapAll(); } catch (_e2) {}
 		try {
-			if (typeof g.KDFindPathClearCache === "function") g.KDFindPathClearCache();
-		} catch (_e) {}
-		try {
-			if (typeof KDMotionSnapAll === "function") KDMotionSnapAll();
-		} catch (_e2) {}
-		try {
-			var list = (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) ? KDMapData.Entities : [];
+			var list = (g.KDMapData && g.KDMapData.Entities) ? g.KDMapData.Entities : [];
 			for (var i = 0; i < list.length; i++) {
 				var e = list[i];
 				if (!e) continue;
 				e.path = null;
-				if (typeof e.x === "number") {
-					e.visual_x = e.x;
-					e.visual_y = e.y;
-				}
+				if (typeof e.x === "number") { e.visual_x = e.x; e.visual_y = e.y; }
 			}
 		} catch (_e3) {}
-		try {
-			if (typeof console !== "undefined" && console.log)
-				console.log("[KDHybridFinalize] map/floor change → path cache + visuals cleared");
-		} catch (_c) {}
 	}
 
-	/** Ensure every entity has visual_* initialized and tracking logical x,y when not lerping hard */
 	function enforceVisuals(): void {
-		if (!g.KD_DRAW_VISUAL_ENFORCE) return;
-		if (!isGameActive()) return;
+		if (!g.KD_DRAW_VISUAL_ENFORCE || !isGameActive()) return;
 		try {
-			var list = (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) ? KDMapData.Entities : [];
-			var pl = typeof KinkyDungeonPlayerEntity !== "undefined" ? KinkyDungeonPlayerEntity : null;
-			if (pl) list = list.concat ? list : list;
-			var all = list.slice ? list.slice() : [];
-			if (pl && all.indexOf(pl) < 0) all.push(pl);
-			for (var i = 0; i < all.length && i < 100; i++) {
-				var e = all[i];
+			var list = (g.KDMapData && g.KDMapData.Entities) ? g.KDMapData.Entities.slice() : [];
+			var pl = g.KinkyDungeonPlayerEntity;
+			if (pl && list.indexOf(pl) < 0) list.push(pl);
+			for (var i = 0; i < list.length && i < 100; i++) {
+				var e = list[i];
 				if (!e || typeof e.x !== "number") continue;
 				if (typeof e.visual_x !== "number" || !isFinite(e.visual_x)) e.visual_x = e.x;
 				if (typeof e.visual_y !== "number" || !isFinite(e.visual_y)) e.visual_y = e.y;
 			}
 		} catch (_e) {}
-		// Global helper always present
 		if (typeof g.KDEntityVisualPos !== "function") {
 			g.KDEntityVisualPos = function (e: any) {
 				if (!e) return { x: 0, y: 0 };
@@ -126,16 +101,12 @@
 		}
 	}
 
-	/** When enemies mark wantAttack while engaged, nudge world time so vanilla can resolve */
 	function tickAttackNudge(): void {
-		if (!g.KD_RT_ATTACK_NUDGE) return;
-		if (!isGameActive() || !isEngaged()) return;
+		if (!g.KD_RT_ATTACK_NUDGE || !isGameActive() || !isEngaged()) return;
 		var t = nowMs();
 		if (t - lastNudge < (Number(g.KD_RT_ATTACK_NUDGE_MS) || 600)) return;
 		var list: any[] = [];
-		try {
-			if (typeof KDMapData !== "undefined" && KDMapData && KDMapData.Entities) list = KDMapData.Entities;
-		} catch (_e) {}
+		try { if (g.KDMapData && g.KDMapData.Entities) list = g.KDMapData.Entities; } catch (_e) {}
 		var any = false;
 		for (var i = 0; i < list.length; i++) {
 			if (list[i] && list[i].__kd_wantAttack) {
@@ -146,38 +117,33 @@
 		if (!any) return;
 		lastNudge = t;
 		try {
-			if (typeof KinkyDungeonAdvanceTime === "function") KinkyDungeonAdvanceTime(1, true, true);
+			if (typeof g.KinkyDungeonAdvanceTime === "function") g.KinkyDungeonAdvanceTime(1, true, true);
 		} catch (_e2) {
-			try { if (typeof KinkyDungeonAdvanceTime === "function") KinkyDungeonAdvanceTime(1); } catch (_e3) {}
+			try { if (typeof g.KinkyDungeonAdvanceTime === "function") g.KinkyDungeonAdvanceTime(1); } catch (_e3) {}
 		}
 	}
 
-	/** Hardened struggle unlock: resolve group from multiple shapes */
 	function tickStruggleUnlockHard(): void {
-		if (!g.KD_STRUGGLE_RT_UNLOCK) return;
-		if (!isGameActive()) return;
+		if (!g.KD_STRUGGLE_RT_UNLOCK || !isGameActive()) return;
 		var thr = Number(g.KD_STRUGGLE_UNLOCK_THRESHOLD) || 0.92;
 		var t = nowMs();
 		try {
-			if (typeof KinkyDungeonAllRestraint !== "function") return;
-			var list = KinkyDungeonAllRestraint();
+			if (typeof g.KinkyDungeonAllRestraint !== "function") return;
+			var list = g.KinkyDungeonAllRestraint();
 			if (!list || !list.length) return;
 			for (var i = 0; i < list.length; i++) {
-				var it = list[i];
-				var item = it && (it.item || it);
+				var it: any = list[i];
+				var item: any = it && (it.item || it);
 				if (!item) continue;
 				var prog = typeof item.struggleProgress === "number" ? item.struggleProgress
 					: (typeof item.progress === "number" ? item.progress : -1);
 				if (!(prog >= thr)) continue;
-				var group = item.group || it.group || item.lockGroup ||
-					(item.name && String(item.name)) || ("idx" + i);
+				var group = item.group || it.group || item.lockGroup || (item.name && String(item.name)) || ("idx" + i);
 				if (struggleCooldown[group] && t - struggleCooldown[group] < 1500) continue;
 				struggleCooldown[group] = t;
 				try {
-					var send = g.KDSendInput;
-					// Prefer unwrapped if master stored original on hybrid complete — use public send
-					if (typeof send === "function") {
-						send("struggle", { group: group, struggleType: "Struggle" }, undefined, undefined, true);
+					if (typeof g.KDSendInput === "function") {
+						g.KDSendInput("struggle", { group: group, struggleType: "Struggle" }, undefined, undefined, true);
 					}
 					if (typeof item.struggleProgress === "number") item.struggleProgress = 0;
 					if (typeof item.progress === "number") item.progress = 0;
@@ -186,7 +152,7 @@
 		} catch (_e2) {}
 	}
 
-	function tick(dt: number): void {
+	function tick(_dt: number): void {
 		if (!g.KD_HYBRID_FINALIZE) return;
 		checkMapChange();
 		enforceVisuals();
@@ -199,7 +165,6 @@
 			g.KDHybridPumpRegister("finalize", tick, 0);
 			return;
 		}
-		// fallback own pump
 		var last = 0;
 		function p(): void {
 			var t = nowMs();
@@ -216,16 +181,8 @@
 	setTimeout(attach, 0);
 
 	g.KDHybridFinalizeGetState = function () {
-		return {
-			mapId: lastMapId,
-			floor: lastFloor,
-			visualEnforce: !!g.KD_DRAW_VISUAL_ENFORCE,
-			attackNudge: !!g.KD_RT_ATTACK_NUDGE,
-		};
+		return { mapId: lastMapId, floor: lastFloor, visualEnforce: !!g.KD_DRAW_VISUAL_ENFORCE, attackNudge: !!g.KD_RT_ATTACK_NUDGE };
 	};
 
-	try {
-		if (typeof console !== "undefined" && console.log)
-			console.log("[KDHybridFinalize] polish layer online (map cache clear, visual enforce, attack nudge, struggle harden).");
-	} catch (_c) {}
+	try { console.log("[KDHybridFinalize] polish layer online."); } catch (_c) {}
 })();
