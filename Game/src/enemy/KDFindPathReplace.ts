@@ -5,6 +5,7 @@
  *  - wraps FindPath with result cache (ttl)
  *  - hierarchical: reuse path if goal unchanged and still valid first step
  *  - continuous repath budget for entities with stale paths
+ *  - KDFindPathClearCache() on map/floor change (via finalize)
  *
  * Vanilla A* remains the solver; this replaces *usage pattern*, not the algorithm body.
  */
@@ -21,6 +22,7 @@
 	var cache: Record<string, { path: any; t: number; gx: number; gy: number }> = {};
 	var hits = 0;
 	var misses = 0;
+	var clears = 0;
 	var lastRepath = 0;
 	var repathCursor = 0;
 
@@ -31,6 +33,11 @@
 
 	function key(x1: number, y1: number, x2: number, y2: number, block?: any): string {
 		return x1 + "," + y1 + ">" + x2 + "," + y2 + ":" + (block || "");
+	}
+
+	function KDFindPathClearCache(): void {
+		cache = {};
+		clears++;
 	}
 
 	function capture(): void {
@@ -58,7 +65,6 @@
 		misses++;
 		var path = original.apply(null, args);
 		cache[k] = { path: path, t: t, gx: x2, gy: y2 };
-		// opportunistic prune
 		if (misses % 40 === 0) {
 			for (var ck in cache) {
 				if (t - cache[ck].t > ttl * 4) delete cache[ck];
@@ -91,7 +97,6 @@
 		return [];
 	}
 
-	/** Continuous repath: refresh stale enemy paths on a budget */
 	function repathTick(): void {
 		if (!g.KD_REPLACE_FIND_PATH) return;
 		if (typeof original !== "function") return;
@@ -108,7 +113,6 @@
 			if (!e || e.player) continue;
 			if (typeof e.gx !== "number" || typeof e.gy !== "number") continue;
 			if (e.gx === e.x && e.gy === e.y) continue;
-			// If no path or first step invalid-ish, recompute
 			var need = !e.path || !e.path.length;
 			if (!need && e.path && e.path[0]) {
 				var step = e.path[0];
@@ -132,12 +136,14 @@
 	if (typeof requestAnimationFrame === "function") requestAnimationFrame(pump);
 	else setTimeout(pump, 50);
 
+	g.KDFindPathClearCache = KDFindPathClearCache;
 	g.KDFindPathReplaceGetState = function () {
 		return {
 			enabled: !!g.KD_REPLACE_FIND_PATH,
 			installed: installed,
 			hits: hits,
 			misses: misses,
+			clears: clears,
 			cacheSize: Object.keys(cache).length,
 		};
 	};
