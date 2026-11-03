@@ -41,7 +41,10 @@
         "Game/src/map/KinkyDungeonEditor.ts",
         "Game/src/map/KinkyDungeonEditorGen.ts",
         "Game/src/base/KinkyDungeonErrors.ts",
+        "Game/src/base/KDAudioDrivers.ts",
+        "Game/src/base/KDWebAudio.ts",
         "Game/src/base/KinkyDungeon.ts",
+        "Game/src/base/KDButtplug.ts",
         "Game/src/base/KDRender.ts",
         "Game/src/map/KDMapGen.ts",
         "Game/src/base/game/KinkyDungeonGame.ts",
@@ -71,6 +74,7 @@
         "Game/src/enemy/KinkyDungeonEnemyTeaseAttacks.ts",
         "Game/src/map/KinkyDungeonEscapeList.ts",
         "Game/src/item/KDCurse.ts",
+        "Game/src/item/KDCurseBuffs.ts",
         "Game/src/restraint/KinkyDungeonRestraints.ts",
         "Game/src/restraint/KDSpiritbond.ts",
         "Game/src/restraint/special/Masterwork.ts",
@@ -176,6 +180,7 @@
         "Data/Defs.ts",
         "Data/Poses.ts",
         "Data/Models.ts",
+        "Data/ModelAtlases.ts",
         "Data/MushWarp.ts",
         "Data/ModelListHair.ts",
         "Data/ModelListHair2.ts",
@@ -185,6 +190,7 @@
         "Data/ModelList_Panties.ts",
         "Data/ModelList_Cosplay.ts",
         "Data/ModelList_Pants.ts",
+        "Data/ModelList_Catsuit.ts",
         "Data/ModelList.ts",
         "Data/ModelList_Kigu.ts",
         "Data/ModelList_Leotards.ts",
@@ -193,6 +199,7 @@
         "Data/ModelList_Dress.ts",
         "Data/ModelList_Cloak.ts",
         "Data/ModelList_Hood.ts",
+        "Data/ModelList_Headphones.ts",
         "Data/ModelList_Yukata.ts",
         "Data/ModelList_Mittens.ts",
         "Data/ModelList_Elf.ts",
@@ -267,7 +274,7 @@
         "Game/src/player/KDPlayerTitles.ts"
     ],
     "compilerOptions": {
-        "target": "es2020",
+        "target": "es2022",
         "sourceMap": true,
         "inlineSources": true,
         "outFile": "./out/main.js",
@@ -281,12 +288,17 @@
 
         "moduleResolution": "node",
         "allowSyntheticDefaultImports": true,
-        "lib": ["DOM", "ES2020"],
-        //"ignoreDeprecations": "6.0",
+        "lib": ["DOM", "ESNext.Disposable", "ES2022"],
         "strictNullChecks": false,
         "noImplicitAny": false,
+        "paths": {
+            "@zendrex/buttplug.js/patterns": ["./node_modules/@zendrex/buttplug.js/dist/patterns/index.d.mts"]
+        }
     },
     "watchOptions": {
         "excludeDirectories": ["**/node_modules", "_build"],
-    }
+    },
+    "include": [
+        "Scripts/lib/buttplug.d.ts"
+    ]
 }

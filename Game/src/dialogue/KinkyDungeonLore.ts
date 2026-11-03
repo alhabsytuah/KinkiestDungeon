@@ -1,0 +1,862 @@
+"use strict";
+
+
+let KDLore: Record<string, Record<string, Lore>> = {
+};
+
+let KinkyDungeonCurrentLore = "Cover";
+let KDLoreImg: Record<string, string> = {};
+let KDLoreEnemy: Record<string, string> = {};
+let KinkyDungeonCurrentLoreTab: string = "Default";
+let KinkyDungeonCurrentLoreTabs: string[] = ["Default"];
+let KinkyDungeonCurrentLoreItems: string[] = [];
+let KinkyDungeonCurrentLoreItemOffset = 0;
+let KinkyDungeonCurrentLoreTabOffset = 0;
+let KinkyDungeonLoreScale = 1.5;
+let KinkyDungeonRepeatLoreChance = 0.4; // Chance you will find a duplicate piece of lore
+let KinkyDungeonGenericLoreChance = 0.33; // Chance you will find a generic note instead of a previous note
+
+let KDLoreTextSpace = 24;
+
+let KinkyDungeonNewLoreList: string[] = localStorage.getItem("kdnewLore") ? JSON.parse(localStorage.getItem("kdnewLore")) : ["Cover"];
+
+function KinkyDungeonNewLore() {
+	let availableLore: string[] = [];
+
+	let exploredLore: Record<string, number> = localStorage.getItem("kdexpLore") ? JSON.parse(localStorage.getItem("kdexpLore")) : {Cover: 1};
+	let newLore = localStorage.getItem("kdnewLore") ? JSON.parse(localStorage.getItem("kdnewLore")) : ["Cover"];
+
+	let altType = KDGetAltType(MiniGameKinkyDungeonLevel, KDMapData.MapMod, KDMapData.RoomType);
+
+	let checkpoint = (altType?.loreCheckpoint || KinkyDungeonMapIndex[MiniGameKinkyDungeonCheckpoint] || MiniGameKinkyDungeonCheckpoint);
+
+	if (!exploredLore || Object.keys(exploredLore).length == 0) {
+		availableLore = [];
+		for (let lore of Object.keys(KDLore[checkpoint])) {
+			if (!KDLore[checkpoint][lore].condition || KDLore[checkpoint][lore].condition())
+				availableLore.push(lore);
+		}
+	} else if (KDLore[checkpoint]) {
+		for (let lore of Object.keys(KDLore[checkpoint])) {
+			if (!KDLore[checkpoint][lore].condition || KDLore[checkpoint][lore].condition())
+				availableLore.push(lore);
+		}
+
+		if (Math.random() < KinkyDungeonRepeatLoreChance) {
+			for (let lore of Object.keys(KDLore.Default)) {
+				if (!KDLore.Default[lore].condition || KDLore.Default[lore].condition())
+					availableLore.push(lore);
+			}
+			//availableLore = Object.keys(KDLore.Default);
+		}//else Object.values(KDLore).forEach((tab) => {availableLore.push(...Object.keys(tab));});
+
+	}
+
+	let result = false;
+
+	if (availableLore.length > 0) {
+		KinkyDungeonCurrentLore = availableLore[Math.floor(Math.random() * availableLore.length)];
+		if (!exploredLore[KinkyDungeonCurrentLore]) {
+
+			KinkyDungeonSendActionMessage(5, TextGet("ItemPickupLore"), KDBaseWhite, 2, false, false, undefined, "Items");
+			exploredLore[KinkyDungeonCurrentLore] = 1;
+			newLore.push(KinkyDungeonCurrentLore);
+
+			KinkyDungeonCurrentLoreTab = "Default";
+			for (let tab of Object.keys(KDLore)) {
+				if (KDLore[tab][KinkyDungeonCurrentLore] && !KDLore[tab][KinkyDungeonCurrentLore].noShow) {
+					KinkyDungeonCurrentLoreTab = tab;
+					break;
+				}
+			}
+		} else {
+			KinkyDungeonSendActionMessage(4, TextGet("ItemPickupLoreOld"), "gray", 2, false, false, undefined, "Ambient");
+			KinkyDungeonCurrentLore = UIItemFromList("", Object.keys(KDLore.Default));
+		}
+		result = true;
+	} else {
+		KinkyDungeonCurrentLore = UIItemFromList("", Object.keys(KDLore.Default));
+		if (!exploredLore[KinkyDungeonCurrentLore]) {
+
+			KinkyDungeonSendActionMessage(5, TextGet("ItemPickupLore"), KDBaseWhite, 2, false, false, undefined, "Items");
+			exploredLore[KinkyDungeonCurrentLore] = 1;
+			newLore.push(KinkyDungeonCurrentLore);
+
+			KinkyDungeonCurrentLoreTab = "Default";
+			for (let tab of Object.keys(KDLore)) {
+				if (KDLore[tab][KinkyDungeonCurrentLore] && !KDLore[tab][KinkyDungeonCurrentLore].noShow) {
+					KinkyDungeonCurrentLoreTab = tab;
+					break;
+				}
+			}
+		} else {
+			KinkyDungeonSendActionMessage(4, TextGet("ItemPickupLoreOld"), "gray", 2, false, false, undefined, "Ambient");
+			KinkyDungeonCurrentLore = UIItemFromList("", Object.keys(KDLore.Default));
+		}
+	}
+
+	localStorage.setItem("kdexpLore", JSON.stringify(exploredLore));
+	KinkyDungeonNewLoreList = newLore;
+	localStorage.setItem("kdnewLore", JSON.stringify(newLore));
+
+	KinkyDungeonUpdateTabs(exploredLore);
+
+	return result;
+}
+
+function KinkyDungeonUpdateTabs(exploredLore: Record<string, number>) {
+	KinkyDungeonCurrentLoreTabs = ["Default"];
+	for (let lore of Object.keys(exploredLore)) {
+		for (let tab of Object.keys(KDLore)) {
+			if (KDLore[tab][lore] && !KDLore[tab][lore].noShow) KinkyDungeonCurrentLoreTabs.push(tab);
+		}
+	}
+}
+
+let KDLoreWidth = 550*KinkyDungeonLoreScale - 30;
+let KDLoreHeight = 500*KinkyDungeonLoreScale;
+
+function KinkyDungeonDrawLore() {
+	let xOffset = -125;
+
+	let w = KDLoreWidth;
+	let h = KDLoreHeight;
+
+	if (KDToggles.SpellBook) {
+		KDTextTan = KDTextTanSB;
+		KDBookText = KDBookTextSB;
+		KDDraw(kdcanvas, kdpixisprites, "magicbook", KinkyDungeonRootDirectory + "MagicBookNew.png", canvasOffsetX_ui - 100, canvasOffsetY_ui - 100, 640*KinkyDungeonLoreScale, 520*KinkyDungeonLoreScale);
+	} else {
+		KDTextTan = KDTextTanNew;
+		KDBookText = KDBookTextNew;
+		FillRectKD(kdcanvas, kdpixisprites, "magicbook", {
+			Left: canvasOffsetX_ui,
+			Top: canvasOffsetY_ui- 20,
+			Width: w,
+			Height: h,
+			Color: "#161920",
+			LineWidth: 1,
+			zIndex: 19,
+			alpha: 1
+		});
+		DrawRectKD(kdcanvas, kdpixisprites, "magicbook2", {
+			Left: canvasOffsetX_ui,
+			Top: canvasOffsetY_ui - 20,
+			Width: w,
+			Height: h,
+			Color: KDBorderColor,
+			LineWidth: 1,
+			zIndex: 19,
+			alpha: 0.9
+		});
+	}
+
+
+
+	// Draw the current note
+
+	//let wrapAmount = KDBigLanguages.includes(TranslationLanguage) ? 19 : 45;
+	let loreName = TextGet("KDLoreTitle" + KinkyDungeonCurrentLore);
+	let loreOrig = TextGet("KDLoreText" + KinkyDungeonCurrentLore).split(/\||\\n|\n/);
+	let lore = [];
+	let mult = KDGetFontMult();
+	if (KDLoreEnemy[KinkyDungeonCurrentLore]) mult *= 0.74;
+	for (let str of loreOrig) {
+		lore.push(...(KinkyDungeonWordWrap(str, 26*mult, 60*mult).split('\n')));
+	}
+	let i = 0;
+	DrawTextFitKD(loreName,
+		0.75 * 640*KinkyDungeonLoreScale * 0.525
+		+ canvasOffsetX_ui - 100 + 640*KinkyDungeonLoreScale/8, canvasOffsetY_ui - 100 + 483*KinkyDungeonLoreScale/6 + i * 40, 0.75 * 640*KinkyDungeonLoreScale, KDBookText, KDTextTan, 36, "center");
+	if (KDLoreImg[KinkyDungeonCurrentLore]) {
+		i += 0.7;
+		let imgwidth = 200;
+		let images = KDLoreImg[KinkyDungeonCurrentLore].split(/\||\\n|\n/);
+		if (imgwidth * images.length > w) {
+			imgwidth = w / images.length;
+		}
+		for (let ii = 0; ii < images.length; ii++) {
+			KDDraw(kdcanvas, kdpixisprites, "kdlorimage" + ii,
+				KinkyDungeonRootDirectory + images[ii],
+				0.75 * 640*KinkyDungeonLoreScale * (0.525) + imgwidth * ii - (imgwidth/2 * (images.length))
+			+ canvasOffsetX_ui - 100 + 640*KinkyDungeonLoreScale/8, canvasOffsetY_ui - 100 + 483*KinkyDungeonLoreScale/6 + i * 40,
+				imgwidth, imgwidth, 0, {
+					zIndex: 40,
+				}, undefined, 
+				undefined, undefined, true
+			);
+		}
+	}
+	if (KDLoreEnemy[KinkyDungeonCurrentLore] && KinkyDungeonGetEnemyByName(KDLoreEnemy[KinkyDungeonCurrentLore])) {
+		let enemy = KinkyDungeonGetEnemyByName(KDLoreEnemy[KinkyDungeonCurrentLore]);
+		let armor = (enemy.armor || 0);
+		let spellResist = (enemy.spellResist || 0);
+		let block_phys = (enemy.Resistance?.block_phys || 0);
+		let block_magic = (enemy.Resistance?.block_magic || 0);
+		let TooltipList = [];
+
+		if (block_phys) {
+			let st = TextGet("KinkyDungeonTooltipBlockPhys").replace("AMOUNT", "" + Math.round(10* block_phys)
+			);
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDTextGray0,
+				size: 20,
+			});
+		}
+		if (block_magic) {
+			let st = TextGet("KinkyDungeonTooltipBlockMagic").replace("AMOUNT", "" + Math.round(10* block_magic)
+			);
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDTextGray0,
+				size: 20,
+			});
+		}
+		if (armor) {
+			let st = TextGet("KinkyDungeonTooltipArmor").replace("AMOUNT", "" + Math.round(10* armor) + (block_phys ? `(+${Math.round(10* block_phys)})` : ""));
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDTextGray0,
+				size: 20,
+			});
+		}
+		if (spellResist) {
+			let st = TextGet("KinkyDungeonTooltipSpellResist").replace("AMOUNT", "" + Math.round(10* spellResist) + (block_magic ? `(+${Math.round(10* block_magic)})` : ""));
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDTextGray0,
+				size: 20,
+			});
+		}
+		if (enemy.tags.unstoppable) {
+			let st = TextGet("KDunstoppable");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		} else if (enemy.tags.unflinching) {
+			let st = TextGet("KDunflinching");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		} else if (enemy.tags.relentless) {
+			let st = TextGet("KDrelentless");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		}
+		if (enemy.tags?.bulwark) {
+			let st = TextGet("KDBulwark");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		}
+		if (enemy.Resistance?.toughArmorAlways) {
+			let st = TextGet("KDAbsoluteArmor");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		} else if (enemy.Resistance?.toughArmor) {
+			let st = TextGet("KDToughArmor");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		}
+
+		if (enemy.disarm) {
+			let dt = KinkyDungeonDamageTypes[enemy.dmgType];
+			if (dt) {
+				let st = TextGet("KDTooltipDisarm").replace("DISARMCHANCE", "" + Math.round(enemy.disarm * 100));
+				TooltipList.push({
+					str: st,
+					fg: "#ffaa55",
+					bg: KDBaseBlack,
+					size: 20,
+				});
+			}
+		}
+
+		if (enemy.dmgType) {
+			let dt = KinkyDungeonDamageTypes[enemy.dmgType];
+			if (dt) {
+				let st = TextGet("KinkyDungeonTooltipDealsDamage").replace("DAMAGETYPE", TextGet("KinkyDungeonDamageType" + enemy.dmgType));
+				TooltipList.push({
+					str: st,
+					fg: dt.color,
+					bg: dt.bg,
+					size: 20,
+				});
+			}
+		}
+		if (enemy.blindSight > 0) {
+			let st = TextGet("KDBlindsight");
+			TooltipList.push({
+				str: st,
+				fg: KDBaseWhite,
+				bg: KDBaseBlack,
+				size: 20,
+			});
+		}
+
+		let map = Object.assign({}, enemy.tags);
+		if (enemy.spellResist)
+			map.magic = true;
+		if (enemy.Resistance?.profile) {
+			for (let p of enemy.Resistance?.profile) {
+				for (let dt of Object.keys(KDResistanceProfiles[p])) {
+					map[dt] = true;
+				}
+			}
+		}
+		let list = Array.from(Object.keys(map));
+		let magic = false;
+		let repeats: Record<string, boolean> = {};
+		//for (let t of list) {
+		let t = list;
+		for (let dt of Object.values(KinkyDungeonDamageTypes)) {
+			if ((t.includes(dt.name + "resist") || t.includes(dt.name + "weakness") || t.includes(dt.name + "immune") || t.includes(dt.name + "severeweakness"))
+				|| (dt.name == "magic" && t.includes("magic"))) {
+				let mm = 1.0;
+				if (t.includes(dt.name + "resist")) mm = 0.5;
+				else if (t.includes(dt.name + "weakness")) mm = 1.5;
+				else if (t.includes(dt.name + "immune")) mm = 0;
+				else if (t.includes(dt.name + "severeweakness")) mm = 2.0;
+				if (dt.name == "magic" && !magic) {
+					magic = true;
+				}
+				let st = TextGet("KinkyDungeonTooltipWeakness")
+					.replace("MULTIPLIER", "" + Math.round(mm * 100)/100)
+					.replace("DAMAGETYPE", TextGet("KinkyDungeonDamageType"+ dt.name));
+				let name = TextGet("KinkyDungeonDamageType"+ dt.name);
+
+				if (!repeats.DR) {
+					TooltipList.push({
+						str: "",
+						fg: KDBaseWhite,
+						bg: KDBaseBlack,
+						size: 10,
+					});
+					TooltipList.push({
+						str: TextGet("KDTooltipDamageResists"),
+						fg: KDBaseWhite,
+						bg: KDBaseBlack,
+						size: 20,
+					});
+					repeats.DR = true;
+				}
+				if (!repeats[name])
+					TooltipList.push({
+						str: st,
+						fg: dt.color,
+						bg: dt.bg,
+						size: 18,
+					});
+				repeats[name] = true;
+			}
+		}
+
+		let extra = 5;
+		let YY = canvasOffsetY_ui - 20 + h;
+		TooltipList.forEach((listItem) => {
+			YY -= (extra + listItem.size);
+		});
+		for (let listItem of TooltipList) {
+			DrawTextFitKD(listItem.str,
+				canvasOffsetX_ui - 100 + 640*KinkyDungeonLoreScale/8 + 0.575 * 640*KinkyDungeonLoreScale,
+				YY,
+				0.22 * 640*KinkyDungeonLoreScale,
+				listItem.fg, listItem.bg,
+				listItem.size, "left", 40);
+			YY += extra + listItem.size;
+		}
+	}
+	i = KDLoreImg[KinkyDungeonCurrentLore] ? 10 : 4;
+	for (let N = 0; N < lore.length; N++) {
+		DrawTextFitKD(lore[N],
+			canvasOffsetX_ui - 100 + 640*KinkyDungeonLoreScale/8, canvasOffsetY_ui - 100 + 483*KinkyDungeonLoreScale/6 + i * KDLoreTextSpace, 
+			0.75 * 640*KinkyDungeonLoreScale, KDBookText, KDTextTan, 20, "left"); i++;}
+
+	if (KinkyDungeonNewLoreList.includes(KinkyDungeonCurrentLore)) {
+		KinkyDungeonNewLoreList.splice(KinkyDungeonNewLoreList.indexOf(KinkyDungeonCurrentLore), 1);
+		localStorage.setItem("kdnewLore", JSON.stringify(KinkyDungeonNewLoreList));
+	}
+
+
+	KDDrawLoreTabs(xOffset, KDLoreTabsX, h);
+
+	KDDrawLoreRepTabs(xOffset);
+}
+
+let KDLoreTabsX = 1300;
+
+function KDDrawLoreTabs(xOffset: number, x: number, h: number) {
+	// Draw the tabs
+
+	KDDrawLoreList(x, 142, 200, h);
+	KDDrawLoreCategoryList(x + 210, 142, 240, h);
+
+	
+	
+	
+}
+
+let KDUpdateLore = true;
+
+function KDDrawLoreCategoryList(x: number, y: number, w: number, h: number) {
+	let tabNames = Object.keys(KDLore);
+
+
+
+	let listID = "KDLoreCategoryList";
+    let rowSize = 42;
+    let listX = x;
+    let listY = y;
+    let listW = w;
+    let listH = h;
+	if (KDUpdateLore || ShouldUpdateList(listID)) {
+		KDUpdateLore = false;
+		PopulateList(listID, 
+			listX, 
+		    listY, 
+			listW, listH, 50, 
+			Math.floor(listH / rowSize),
+			[...tabNames], false, false, 250
+		);
+	}
+    
+
+    let hotkeyUp = KinkyDungeonKey[5];
+    let hotkeyDown = KinkyDungeonKey[7];
+	//@ts-ignore
+	let drawn: string = KDDrawScrollableList(listID, true, (
+		container: PIXIContainer,
+		isClickable: boolean,
+		listItem: string,
+		listRow: number,
+		visualIndex: number,
+		isSelected: boolean,
+		selectedIndex: number,
+		list: KDScrollableListData)  => {
+
+		let i = visualIndex;
+        let newLore = false;
+
+		for (let ll of KinkyDungeonNewLoreList) {
+			if (KDLore[listItem][ll]) {
+				newLore = true;
+				break;
+			}
+		}
+
+		DrawButtonKDExTo(container, "loretab" + listItem, (_b) => {
+			if (listItem) {
+				KDUpdateLore = true;
+				KinkyDungeonCurrentLoreTab = listItem;
+				KinkyDungeonUpdateLore(localStorage.getItem("kdexpLore") ?
+					JSON.parse(localStorage.getItem("kdexpLore")) : {});
+
+				if (KinkyDungeonCurrentLoreItems?.length > 0) {
+					KinkyDungeonCurrentLore = KinkyDungeonCurrentLoreItems[0];
+				}
+			}
+			return true;
+		}, true, x, y + i * rowSize, w - 20, rowSize-2, 
+		KinkyDungeonCurrentLoreTabs.includes(listItem) ?
+			TextGet("KinkyDungeonCheckpointLore" + listItem) :
+			TextGet("KinkyDungeonCheckpointLoreUnknown"),
+			listItem == KinkyDungeonCurrentLoreTab ? KDBaseWhite : (newLore ? KDBaseMint :KDBaseWhite),
+			undefined, undefined, undefined, 
+			listItem != KinkyDungeonCurrentLoreTab,KDButtonColor);
+
+		return listItem == KinkyDungeonCurrentLoreTab;
+
+	}, undefined, false, 18, undefined, 
+    hotkeyUp, hotkeyDown, undefined, undefined, undefined, undefined, undefined,
+	undefined, undefined, undefined, (items, listItemTo, index, amount) => {
+		let listItem = items[Math.max(0, index + amount)];
+		if (listItem) {
+			KinkyDungeonCurrentLoreTab = listItem;
+			KDUpdateLore = true;
+			KinkyDungeonUpdateLore(localStorage.getItem("kdexpLore") ?
+				JSON.parse(localStorage.getItem("kdexpLore")) : {});
+			
+			if (KinkyDungeonCurrentLoreItems?.length > 0) {
+				KinkyDungeonCurrentLore = KinkyDungeonCurrentLoreItems[0];
+			}
+		}
+		return true;
+	});
+}
+
+function KDDrawLoreList(x: number, y: number, w: number, h: number) {
+
+	let tabNames = KinkyDungeonCurrentLoreItems;
+
+
+
+	let listID = "KDLoreItemList";
+    let rowSize = 42;
+    let listX = x;
+    let listY = y;
+    let listW = w;
+    let listH = h;
+	if (KDUpdateLore || ShouldUpdateList(listID)) {
+		KDUpdateLore = false;
+		PopulateList(listID, 
+			listX, 
+		    listY, 
+			listW, listH, 50, 
+			Math.floor(listH / rowSize),
+			[...tabNames], false, false, 250
+		);
+	}
+    
+
+    let hotkeyUp = KinkyDungeonKey[0];
+    let hotkeyDown = KinkyDungeonKey[2];
+	//@ts-ignore
+	let drawn: string = KDDrawScrollableList(listID, true, (
+		container: PIXIContainer,
+		isClickable: boolean,
+		listItem: string,
+		listRow: number,
+		visualIndex: number,
+		isSelected: boolean,
+		selectedIndex: number,
+		list: KDScrollableListData)  => {
+
+		let loreNum = listItem;
+
+		if (loreNum)
+
+			DrawButtonKDExTo(container, "loreItem" + loreNum, (_b) => {
+					KDUpdateLore = true;
+					KinkyDungeonCurrentLore = loreNum;
+					return true;
+				}, true, x, y + (visualIndex) * 42, w - 20, 40, 
+				TextGet("KDLoreLabel" + loreNum),
+				loreNum == KinkyDungeonCurrentLore ?
+					KDBaseWhite
+					: (KinkyDungeonNewLoreList.includes(loreNum) ? KDBaseMint: KDBaseWhite),
+				undefined, undefined, undefined, 
+				loreNum != KinkyDungeonCurrentLore, KDButtonColor);
+
+		return loreNum == KinkyDungeonCurrentLore;
+	}, undefined, false, 18, undefined, 
+    hotkeyUp, hotkeyDown, undefined, undefined, 
+	undefined, undefined, undefined,
+	undefined, undefined, undefined, (items, listItemTo, index, amount) => {
+		let listItem = items[Math.max(0, index + amount)];
+		if (listItem) {
+			KDUpdateLore = true;
+			KinkyDungeonCurrentLore = listItem;
+		}
+		return true;
+	});
+
+
+}
+
+function KDDrawLoreRepTabs(xOffset: number = -125) {
+	FillRectKD(kdcanvas, kdpixisprites, "mainlorebg", {
+		Left: canvasOffsetX_ui + xOffset,
+		Top: 4,
+		Width: 1965 - (canvasOffsetX_ui),
+		Height: 1000 - (4),
+		Color: KDInvBG,
+		LineWidth: 1,
+		zIndex: -19,
+		alpha: 0.7
+	});
+	DrawRectKD(kdcanvas, kdpixisprites, "mainlorebg2", {
+		Left: canvasOffsetX_ui + xOffset,
+		Top: 4,
+		Width: 1965 - (canvasOffsetX_ui),
+		Height: 1000 - (4),
+		Color: "#222222",
+		LineWidth: 1,
+		zIndex: -19,
+		alpha: 0.9
+	});
+	let scrollFunc = (amount: number) => {
+		switch (KinkyDungeonDrawState) {
+			case  "Logbook": KinkyDungeonDrawState = amount < 0 ? "Quest"  : "Reputation"; break;
+			case  "Reputation": KinkyDungeonDrawState = amount < 0 ? "Logbook"  : "Quest"; break;
+			case  "Quest": KinkyDungeonDrawState = amount < 0 ? "Reputation"  : "JourneyMap"; break;
+			case  "JourneyMap": KinkyDungeonDrawState = amount < 0 ? "Quest"  : "Logbook"; break;
+			//case  "Collection": KinkyDungeonDrawState = amount < 0 ? "Reputation"  : "Facilities"; break;
+			//case  "Facilities": KinkyDungeonDrawState = amount < 0 ? "Collection"  : "Logbook"; break;
+		}
+	};
+	let xxstart = 560;
+	let yy = 4;
+	let num = KDPlayerTitlesEnabled ? 5 : 4;
+	let width = 1100 / num;
+	let II = 0;
+	DrawButtonKDExScroll("TabLore", scrollFunc, (_b) => {
+		KDGoToScreen("Logbook");
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonLog"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Logbook", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	DrawButtonKDExScroll("TabRep", scrollFunc, (_b) => {
+		KDGoToScreen("Reputation");
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonReputation"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Reputation", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	DrawButtonKDExScroll("TabQuest", scrollFunc, (_b) => {
+		KDGoToScreen("Quest");
+		KDSortQuests(KDPlayer());
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonQuest"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Quest", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	DrawButtonKDExScroll("TabJourneyMap", scrollFunc, (_b) => {
+		KDGoToScreen("JourneyMap");
+		KDGameData.UseJourneyTarget = false;
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonJourneyMap"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "JourneyMap", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	if (KDPlayerTitlesEnabled) {
+		DrawButtonKDExScroll("TabTitles", scrollFunc, (_b) => {
+			KDGoToScreen("Titles");
+			return true;
+		}, true, xxstart + II * width, yy, width - 10, 40, TextGet("KDPlayerTitlesTabText"), KDBaseWhite, undefined, undefined, undefined, 
+		KinkyDungeonDrawState != "Titles", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	}
+	/*DrawButtonKDExScroll("TabCollection", scrollFunc, (b) => {
+		KDGoToScreen("Collection");
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonCollection"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Collection", KDButtonColor); II++;
+	DrawButtonKDExScroll("TabFacilities", scrollFunc, (b) => {
+		KDGoToScreen("Facilities");
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonFacilities"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Facilities", KDButtonColor); II++;
+*/
+
+}
+
+let KDInvBG = "#222222";
+
+
+function KDDrawInventoryTabs(xOffset: number, drawBG: boolean = true): void {
+	if (drawBG) {
+		FillRectKD(kdcanvas, kdpixisprites, "mainlorebg", {
+			Left: canvasOffsetX_ui + xOffset,
+			Top: 4,
+			Width: 1965 - (canvasOffsetX_ui),
+			Height: 1000 - (4),
+			Color: KDInvBG,
+			LineWidth: 1,
+			zIndex: -19,
+			alpha: 0.7
+		});
+		DrawRectKD(kdcanvas, kdpixisprites, "mainlorebg2", {
+			Left: canvasOffsetX_ui + xOffset,
+			Top: 4,
+			Width: 1965 - (canvasOffsetX_ui),
+			Height: 1000 - (4),
+			Color: KDBaseBlack,
+			LineWidth: 1,
+			zIndex: -19,
+			alpha: 0.9
+		});
+	}
+	let scrollFunc = (amount: number) => {
+		switch (KinkyDungeonDrawState) {
+			case  "Inventory": KinkyDungeonDrawState = amount < 0 ? "Progress"  : "Progress"; break;
+			case  "Progress": KinkyDungeonDrawState = amount < 0 ? "Inventory"  : "Inventory"; break;
+		}
+	};
+	let xxstart = 560;
+	let yy = 6;
+	let num = 2;
+	let width = 1100 / num;
+	let II = 0;
+
+
+	DrawButtonKDExScroll("TabLore", scrollFunc, (_b) => {
+		KDShowInventory(null);
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonInventory"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Inventory", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	DrawButtonKDExScroll("TabProgress", scrollFunc, (b) => {
+		KDGoToScreen("Progress");
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonProgress"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Progress", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+
+
+}
+
+
+
+function KDDrawCollectionTabs(xOffset: number, drawBG: boolean = true): void {
+	if (drawBG) {
+		FillRectKD(kdcanvas, kdpixisprites, "mainlorebg", {
+			Left: canvasOffsetX_ui + xOffset,
+			Top: 4,
+			Width: 1965 - (canvasOffsetX_ui),
+			Height: 1000 - (4),
+			Color: KDInvBG,
+			LineWidth: 1,
+			zIndex: -19,
+			alpha: 0.7
+		});
+		DrawRectKD(kdcanvas, kdpixisprites, "mainlorebg2", {
+			Left: canvasOffsetX_ui + xOffset,
+			Top: 4,
+			Width: 1965 - (canvasOffsetX_ui),
+			Height: 1000 - (4),
+			Color: KDBaseBlack,
+			LineWidth: 1,
+			zIndex: -19,
+			alpha: 0.9
+		});
+	}
+	let scrollFunc = (amount: number) => {
+		switch (KinkyDungeonDrawState) {
+			case  "Collection": KinkyDungeonDrawState = amount < 0 ? "Facilities"  : "Facilities"; break;
+			case  "Facilities": KinkyDungeonDrawState = amount < 0 ? "Collection"  : "Collection"; break;
+		}
+	};
+	let xxstart = 560;
+	let yy = 6;
+	let num = 2;
+	let width = 1100 / num;
+	let II = 0;
+
+
+	DrawButtonKDExScroll("TabCollection", scrollFunc, (_b) => {
+		KDGoToScreen("Collection", true);
+		KDRefreshCharacter.set(KinkyDungeonPlayer, true);
+		KDResetCollectionScreen();
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonCollection"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Collection", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+	DrawButtonKDExScroll("TabFacilities", scrollFunc, (b) => {
+		KDGoToScreen("Facilities", true);
+		return true;
+	}, true, xxstart + II*width, yy, width - 10, 40, TextGet("KinkyDungeonFacilities"), KDBaseWhite, undefined, undefined, undefined,
+	KinkyDungeonDrawState != "Facilities", KDButtonColor, undefined, undefined,
+{
+		hotkey: KDHotkeyToText(KinkyDungeonKeyTab[II]),
+		hotkeyPress: KinkyDungeonKeyTab[II],
+	}); II++;
+}
+
+/**
+ * @deprecated
+ * Deprecated since 5.5
+ * only in for compatibility
+ */
+let KDProgressEnabled = true;
+
+/**
+ * @param exploredLore
+ */
+function KinkyDungeonUpdateLore(exploredLore: Record<string, number>) {
+	KinkyDungeonCurrentLoreItems = [];
+	if (!KinkyDungeonCurrentLoreTab) KinkyDungeonCurrentLoreTab = "Default";
+	if (KDLore[KinkyDungeonCurrentLoreTab])
+		for (let lore of Object.entries(KDLore[KinkyDungeonCurrentLoreTab])) {
+			if (!lore[1].noShow && exploredLore[lore[0]]) {
+				KinkyDungeonCurrentLoreItems.push(lore[0]);
+			}
+		}
+}
+
+function KinkyDungeonHandleLore() {
+	return true;
+}
+
+/**
+ * @param tabs
+ * @param id
+ * @param label
+ * @param title
+ * @param text
+ * @param [condition]
+ * @param [image]
+ * @param [noShow]
+ * @param [enemy]
+ */
+function KDNewLore(tabs: string | string[], id: string, label: string, title: string, text: string, condition?: () => boolean, image?: string, noShow?: string[], enemy?: string) {
+	addTextKeyCareful("KDLoreText" + id, text);
+	addTextKeyCareful("KDLoreTitle" + id, title);
+	addTextKeyCareful("KDLoreLabel" + id, label);
+
+	if (image) {
+		KDLoreImg[id] = image;
+	}
+	if (enemy) {
+		KDLoreEnemy[id] = enemy;
+	}
+
+	tabs = (typeof tabs === "string") ? [tabs] : tabs;
+
+	for (let tab of tabs) {
+		if (!KDLore[tab]) {
+			KDLore[tab] = {};
+		}
+
+		KDLore[tab][id] = {
+			condition: condition,
+			noShow: !noShow ? undefined : noShow.includes(tab)
+		};
+	}
+}
