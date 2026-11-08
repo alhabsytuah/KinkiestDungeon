@@ -197,7 +197,7 @@ function RG_InstallDoMumbleHook() {
 					KinkyDungeonSendDialogue(KinkyDungeonPlayerEntity, line, (typeof KDBaseWhite !== "undefined") ? KDBaseWhite : "#ffffff", 2, 0);
 				}
 				if (typeof KDToggles !== "undefined" && KDToggles.GagParticles && typeof KDSendGagParticles === "function" && typeof KDPlayer === "function") {
-					KDSendGagParticles(KDPlayer());
+					KDSendGagParticles(KDPlayer(), KDMAINPORTRAITID);
 				}
 			}
 			return;
